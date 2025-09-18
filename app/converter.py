@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable, Sequence, Tuple
+from typing import Iterable, List, Sequence, Tuple
 
 # ``pydub`` is an optional dependency during runtime because the GUI should be
 # able to start even if the package is missing.  The actual conversion logic
@@ -21,11 +21,18 @@ else:
 
 @dataclass(frozen=True)
 class ConversionRequest:
-    """Small data container describing a conversion job."""
+    """Data container describing a batch conversion job."""
 
-    input_path: Path
-    output_path: Path
+    input_paths: Sequence[Path]
+    output_directory: Path
     output_format: str
+
+    def outputs(self) -> Iterable[Tuple[Path, Path]]:
+        """Yield tuples of (input_path, output_path) for the batch."""
+
+        for source in self.input_paths:
+            destination = self.output_directory / f"{source.stem}.{self.output_format}"
+            yield source, destination
 
 
 class SoundConverter:
@@ -43,9 +50,18 @@ class SoundConverter:
     def convert(request: ConversionRequest) -> Tuple[bool, str]:
         """Run the conversion and return a status flag and message."""
 
-        input_path = request.input_path
-        output_path = request.output_path
+        if not request.input_paths:
+            return False, "Không có tệp âm thanh nào được chọn."
+
         output_format = request.output_format.lower()
+        destination_root = request.output_directory
+
+        missing_inputs = [path for path in request.input_paths if not path.exists()]
+        if missing_inputs:
+            if len(missing_inputs) == 1:
+                return False, f"Không tìm thấy tệp {missing_inputs[0]}"
+            joined = ", ".join(str(path) for path in missing_inputs)
+            return False, f"Không tìm thấy các tệp: {joined}"
 
         if AudioSegment is None:
             assert _IMPORT_ERROR is not None  # for type checkers
@@ -57,12 +73,24 @@ class SoundConverter:
                 "`pip install -r requirements.txt`.",
             )
 
-        try:
-            output_path.parent.mkdir(parents=True, exist_ok=True)
-            audio = AudioSegment.from_file(input_path)
-            audio.export(output_path, format=output_format)
-            if output_path.exists():
-                return True, f"Đã lưu tệp tại {output_path}"
-            return True, "Hoàn tất chuyển đổi"
-        except Exception as exc:  # pragma: no cover - thin wrapper
-            return False, str(exc)
+        converted: List[Path] = []
+        destination_root.mkdir(parents=True, exist_ok=True)
+
+        for input_path, output_path in request.outputs():
+            try:
+                audio = AudioSegment.from_file(input_path)
+                audio.export(output_path, format=output_format)
+                converted.append(output_path)
+            except Exception as exc:  # pragma: no cover - thin wrapper
+                if len(request.input_paths) == 1:
+                    return False, str(exc)
+                return False, f"Không thể chuyển đổi '{input_path.name}': {exc}"
+
+        if not converted:
+            return False, "Không thể chuyển đổi các tệp đã chọn."
+
+        if len(converted) == 1:
+            return True, f"Đã lưu tệp tại {converted[0]}"
+
+        destination_text = destination_root if destination_root else converted[0].parent
+        return True, f"Đã chuyển đổi {len(converted)} tệp vào {destination_text}"
