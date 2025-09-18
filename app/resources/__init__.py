@@ -10,6 +10,7 @@ ensures a single code path that works for both scenarios.
 from __future__ import annotations
 
 import re
+import sys
 from functools import lru_cache
 from pathlib import Path
 from typing import Iterable, Match
@@ -18,6 +19,16 @@ from typing import Iterable, Match
 @lru_cache(maxsize=1)
 def _resource_root() -> Path:
     """Return the absolute path to the resources directory."""
+
+    if hasattr(sys, "_MEIPASS"):
+        base = Path(getattr(sys, "_MEIPASS"))
+        for candidate in (
+            base / "app" / "resources",
+            base / "resources",
+            base,
+        ):
+            if (candidate / "styles.qss").exists() or (candidate / "icons").exists():
+                return candidate
 
     return Path(__file__).resolve().parent
 
