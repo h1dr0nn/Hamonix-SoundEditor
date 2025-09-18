@@ -12,10 +12,13 @@ from typing import Iterable, List, Sequence, Tuple
 # crashing immediately on startup.
 try:  # pragma: no cover - exercised indirectly via integration
     from pydub import AudioSegment  # type: ignore
+    from pydub.utils import which as _find_executable  # type: ignore
 except ModuleNotFoundError as exc:  # pragma: no cover - handled gracefully
     AudioSegment = None  # type: ignore[assignment]
+    _find_executable = None
     _IMPORT_ERROR = exc
 else:
+    _find_executable = _find_executable
     _IMPORT_ERROR = None
 
 
@@ -66,15 +69,46 @@ class SoundConverter:
         if AudioSegment is None:
             assert _IMPORT_ERROR is not None  # for type checkers
             missing_package = _IMPORT_ERROR.name or "pydub"
+
+            if missing_package in {"audioop", "pyaudioop"}:
+                return (
+                    False,
+                    "Phiên bản Python hiện tại thiếu mô-đun 'audioop' mà `pydub` cần. "
+                    "Bạn có thể cài đặt gói tương thích `audioop-lts` (ví dụ: chạy "
+                    "`pip install audioop-lts`) hoặc chuyển sang phiên bản Python 3.12 "
+                    "trở xuống vốn bao gồm sẵn 'audioop'.",
+                )
+
+            if missing_package == "pydub":
+                suggestion = "`pip install -r requirements.txt`"
+            else:
+                suggestion = f"`pip install {missing_package}`"
+
             return (
                 False,
                 "Không tìm thấy thư viện "
-                f"'{missing_package}'. Vui lòng cài đặt bằng lệnh "
-                "`pip install -r requirements.txt`.",
+                f"'{missing_package}'. Vui lòng cài đặt bằng lệnh {suggestion}.",
             )
 
         converted: List[Path] = []
         destination_root.mkdir(parents=True, exist_ok=True)
+
+        if _find_executable is not None:
+            encoder = next(
+                (
+                    found
+                    for candidate in ("ffmpeg", "avconv")
+                    for found in (_find_executable(candidate),)
+                    if found
+                ),
+                None,
+            )
+            if encoder is None:
+                return (
+                    False,
+                    "Không tìm thấy chương trình 'ffmpeg' hoặc 'avconv'. "
+                    "Vui lòng cài đặt FFmpeg và đảm bảo nó nằm trong biến môi trường PATH.",
+                )
 
         for input_path, output_path in request.outputs():
             try:
