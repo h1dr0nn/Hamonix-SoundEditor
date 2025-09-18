@@ -11,6 +11,7 @@ a = Analysis(
     datas=[
         ('app/resources/styles.qss', 'app/resources'),
         ('app/resources/icons/*.svg', 'app/resources/icons'),
+        ('app/resources/bin/*', 'app/resources/bin'),
     ],
     hiddenimports=['pydub'],
     hookspath=[],
