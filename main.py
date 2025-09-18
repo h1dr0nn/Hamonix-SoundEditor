@@ -1,13 +1,13 @@
-import sys
-from PySide6.QtWidgets import QApplication
-from app.converter import SoundConverter
-from app.ui_main import MainWindow
+"""Entry point for launching the Sound Converter application."""
 
-def main():
-    app = QApplication(sys.argv)
-    window = MainWindow(SoundConverter())
-    window.show()
-    sys.exit(app.exec())
+from app.application import run
+
+
+def main() -> int:
+    """Delegate to :func:`app.application.run` for backward compatibility."""
+
+    return run()
+
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

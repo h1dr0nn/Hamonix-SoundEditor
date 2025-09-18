@@ -5,7 +5,7 @@
 ## Tính năng chính
 
 - Giao diện tối giản, hiện đại với QSS tuỳ biến và icon vector.
-- Hỗ trợ kéo & thả hoặc duyệt file âm thanh từ máy.
+- Hỗ trợ kéo & thả hoặc duyệt nhiều file âm thanh từ máy.
 - Tuỳ chọn định dạng đầu ra (MP3, WAV, OGG, FLAC, AAC, WMA...).
 - Chọn thư mục lưu và xem trước đường dẫn xuất.
 - Xử lý chuyển đổi trên luồng phụ (worker thread) để UI luôn mượt.
@@ -42,6 +42,12 @@ python main.py
      --name SoundConverter ^
      --add-data "app/resources;app/resources" ^
      main.py
+   ```
+
+   Hoặc sử dụng file `setup.spec` đã cấu hình sẵn đường dẫn icon `.svg`:
+
+   ```powershell
+   pyinstaller setup.spec
    ```
 
 3. File chạy sẽ nằm trong thư mục `dist/SoundConverter/SoundConverter.exe`.

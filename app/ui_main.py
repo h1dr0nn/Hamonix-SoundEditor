@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Optional, Set
+from typing import List, Optional, Sequence, Set
 
 from PySide6.QtCore import Qt, QThread, Signal, Slot
 from PySide6.QtGui import QCloseEvent, QIcon
@@ -40,9 +40,9 @@ AUDIO_SUFFIXES: Set[str] = {
 
 
 class DropArea(QFrame):
-    """Visual area that accepts drag-and-drop of a single audio file."""
+    """Visual area that accepts drag-and-drop of multiple audio files."""
 
-    fileDropped = Signal(Path)
+    filesDropped = Signal(list)
     clicked = Signal()
 
     def __init__(self) -> None:
@@ -87,11 +87,13 @@ class DropArea(QFrame):
         self.style().unpolish(self)
         self.style().polish(self)
 
-        for url in event.mimeData().urls():
-            file_path = Path(url.toLocalFile())
-            if file_path.suffix.lower() in AUDIO_SUFFIXES:
-                self.fileDropped.emit(file_path)
-                break
+        files = [
+            Path(url.toLocalFile())
+            for url in event.mimeData().urls()
+            if Path(url.toLocalFile()).suffix.lower() in AUDIO_SUFFIXES
+        ]
+        if files:
+            self.filesDropped.emit(files)
 
     def mousePressEvent(self, event):  # type: ignore[override]
         if event.button() == Qt.MouseButton.LeftButton:
@@ -109,7 +111,7 @@ class MainWindow(QWidget):
     def __init__(self, converter: SoundConverter) -> None:
         super().__init__()
         self.converter = converter
-        self.input_file: Optional[Path] = None
+        self.input_files: List[Path] = []
         self.output_directory: Optional[Path] = None
         self._thread: Optional[QThread] = None
         self._worker: Optional[ConversionWorker] = None
@@ -135,7 +137,7 @@ class MainWindow(QWidget):
         main_layout.addWidget(header)
 
         self.drop_area = DropArea()
-        self.drop_area.fileDropped.connect(self._handle_input_file)
+        self.drop_area.filesDropped.connect(self._handle_input_files)
         self.drop_area.clicked.connect(self._open_file_dialog)
         main_layout.addWidget(self.drop_area)
 
@@ -237,38 +239,85 @@ class MainWindow(QWidget):
     # Handlers
     # ------------------------------------------------------------------
     def _open_file_dialog(self) -> None:
-        file_path, _ = QFileDialog.getOpenFileName(
+        file_paths, _ = QFileDialog.getOpenFileNames(
             self,
             "Chọn tệp âm thanh",
             "",
             "Audio (*.mp3 *.wav *.ogg *.flac *.aac *.wma *.m4a *.aiff *.aif *.opus)",
         )
-        if file_path:
-            self._handle_input_file(Path(file_path))
+        if file_paths:
+            self._handle_input_files([Path(path) for path in file_paths])
 
-    def _handle_input_file(self, file_path: Path) -> None:
-        if not file_path.exists():
-            QMessageBox.warning(self, "Tệp không tồn tại", "Không thể tìm thấy tệp đã chọn.")
-            return
+    def _handle_input_files(self, file_paths: Sequence[Path]) -> None:
+        valid_files: List[Path] = []
+        unsupported: List[Path] = []
+        missing: List[Path] = []
+        seen: Set[Path] = set()
 
-        if file_path.suffix.lower() not in AUDIO_SUFFIXES:
+        for file_path in file_paths:
+            resolved = file_path.resolve(strict=False)
+            if not file_path.exists():
+                missing.append(file_path)
+                continue
+            if file_path.suffix.lower() not in AUDIO_SUFFIXES:
+                unsupported.append(file_path)
+                continue
+            if resolved in seen:
+                continue
+            seen.add(resolved)
+            valid_files.append(file_path)
+
+        skipped_messages = []
+        if missing:
+            skipped_messages.append(
+                "Không thể tìm thấy: " + ", ".join(path.name for path in missing)
+            )
+
+        if unsupported:
+            skipped_messages.append(
+                "Định dạng không hỗ trợ: "
+                + ", ".join(path.name for path in unsupported)
+            )
+
+        if skipped_messages:
             QMessageBox.warning(
                 self,
-                "Định dạng không được hỗ trợ",
-                "Hãy chọn tệp âm thanh với định dạng phổ biến như MP3, WAV, OGG, FLAC...",
+                "Một số tệp bị bỏ qua",
+                "\n".join(skipped_messages),
+            )
+
+        if not valid_files:
+            QMessageBox.warning(
+                self,
+                "Không có tệp hợp lệ",
+                "Vui lòng chọn ít nhất một tệp âm thanh hợp lệ.",
             )
             return
 
-        self.input_file = file_path
-        if self.output_directory is None:
-            self.output_directory = file_path.parent
-        self.input_label.setText(str(file_path))
-        self.drop_area.set_description("Tệp đã được chọn", file_path.name)
+        self.input_files = valid_files
+        if self.output_directory is None and self.input_files:
+            self.output_directory = self.input_files[0].parent
+
+        if len(self.input_files) == 1:
+            selected = self.input_files[0]
+            self.input_label.setText(str(selected))
+            self.drop_area.set_description("Tệp đã được chọn", selected.name)
+        else:
+            summary_lines = [path.name for path in self.input_files[:3]]
+            remaining = len(self.input_files) - len(summary_lines)
+            if remaining > 0:
+                summary_lines.append(f"... và {remaining} tệp khác")
+            self.input_label.setText("\n".join(summary_lines))
+            self.drop_area.set_description(
+                f"Đã chọn {len(self.input_files)} tệp", "Kéo thêm tệp để thay đổi"
+            )
+
         self.clear_button.setEnabled(True)
         self._update_output_preview()
 
     def _clear_selection(self) -> None:
-        self.input_file = None
+        self.input_files = []
+        self.output_directory = None
         self.drop_area.set_description("Kéo và thả tệp âm thanh", "hoặc bấm để chọn từ máy của bạn")
         self.input_label.setText("Chưa chọn tệp")
         self.output_edit.clear()
@@ -281,29 +330,33 @@ class MainWindow(QWidget):
             self._update_output_preview()
 
     def _update_output_preview(self) -> None:
-        if not self.input_file:
+        if not self.input_files:
             self.output_edit.clear()
             return
 
-        destination = self.output_directory or self.input_file.parent
+        destination = self.output_directory or self.input_files[0].parent
         output_format = self.format_combo.currentText()
-        output_path = destination / f"{self.input_file.stem}.{output_format}"
-        self.output_edit.setText(str(output_path))
+        if len(self.input_files) == 1:
+            output_path = destination / f"{self.input_files[0].stem}.{output_format}"
+            self.output_edit.setText(str(output_path))
+        else:
+            self.output_edit.setText(
+                f"Sẽ lưu {len(self.input_files)} tệp vào {destination}"
+            )
 
     def _export_audio(self) -> None:
-        if not self.input_file:
+        if not self.input_files:
             QMessageBox.warning(self, "Thiếu tệp", "Vui lòng chọn tệp âm thanh trước.")
             return
 
-        output_text = self.output_edit.text().strip()
-        if not output_text:
+        destination = self.output_directory or self.input_files[0].parent
+        if not destination:
             QMessageBox.warning(self, "Thiếu nơi lưu", "Vui lòng chọn thư mục lưu kết quả.")
             return
 
-        output_path = Path(output_text)
         request = ConversionRequest(
-            input_path=self.input_file,
-            output_path=output_path,
+            input_paths=tuple(self.input_files),
+            output_directory=destination,
             output_format=self.format_combo.currentText(),
         )
 
@@ -355,7 +408,7 @@ class MainWindow(QWidget):
         self.browse_button.setEnabled(True)
         self.destination_button.setEnabled(True)
         self.format_combo.setEnabled(True)
-        self.clear_button.setEnabled(bool(self.input_file))
+        self.clear_button.setEnabled(bool(self.input_files))
 
     def closeEvent(self, event: QCloseEvent) -> None:  # type: ignore[override]
         if self._thread and self._thread.isRunning():
