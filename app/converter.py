@@ -93,7 +93,18 @@ class SoundConverter:
         converted: List[Path] = []
         destination_root.mkdir(parents=True, exist_ok=True)
 
-        if _find_executable is not None:
+        converter_override = getattr(AudioSegment, "converter", None)
+        bundled_converter_available = False
+        if converter_override:
+            try:
+                converter_path = Path(converter_override)
+            except TypeError:  # defensive: unexpected converter value
+                converter_path = None
+            else:
+                if converter_path.is_file():
+                    bundled_converter_available = True
+
+        if not bundled_converter_available and _find_executable is not None:
             encoder = next(
                 (
                     found

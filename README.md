@@ -13,7 +13,7 @@
 ## Yêu cầu
 
 - Python 3.9 trở lên.
-- [FFmpeg](https://ffmpeg.org/download.html) đã được cài và thêm vào `PATH` (pydub cần công cụ này để xuất âm thanh).
+- [FFmpeg](https://ffmpeg.org/download.html) đã được cài và thêm vào `PATH` (pydub cần công cụ này để xuất âm thanh) **hoặc** sao chép binary tương ứng vào thư mục `app/resources/bin/`.
 - Các thư viện Python: PySide6 và pydub (cài đặt bằng `pip install -r requirements.txt`).
 
 ## Cài đặt
@@ -27,6 +27,11 @@ pip install -r requirements.txt
 ```bash
 python main.py
 ```
+
+> Khi chạy trực tiếp từ mã nguồn, hãy sao chép file thực thi FFmpeg (ví dụ
+> `ffmpeg.exe` trên Windows hoặc `ffmpeg` trên Linux/macOS) vào thư mục
+> `app/resources/bin/`. Ứng dụng sẽ tự động ưu tiên binary nội bộ này, do đó bạn
+> không cần cấu hình thêm biến môi trường `PATH`.
 
 ## Đóng gói thành file `.exe`
 
