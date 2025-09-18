@@ -6,9 +6,10 @@ QWidget {
 }
 
 #titleLabel {
-    font-size: 28px;
-    font-weight: 600;
-    margin-bottom: 8px;
+    font-size: 30px;
+    font-weight: 700;
+    letter-spacing: 6px;
+    margin-bottom: 12px;
 }
 
 #sectionLabel {
@@ -126,15 +127,15 @@ QComboBox#formatCombo QAbstractItemView {
     border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
-QProgressBar#progressBar {
+QProgressBar#dialogProgress {
     background: rgba(255, 255, 255, 0.05);
     border-radius: 10px;
     border: 1px solid rgba(255, 255, 255, 0.04);
     padding: 4px;
-    min-height: 16px;
+    min-height: 18px;
 }
 
-QProgressBar#progressBar::chunk {
+QProgressBar#dialogProgress::chunk {
     border-radius: 8px;
     background: linear-gradient(135deg, #5e81f4, #7c4dff);
 }
@@ -142,4 +143,90 @@ QProgressBar#progressBar::chunk {
 #statusLabel {
     color: #a9b3d1;
     font-size: 13px;
+}
+
+QTabWidget#mainTabs::pane {
+    border: none;
+}
+
+QTabBar::tab {
+    background: rgba(255, 255, 255, 0.04);
+    border-radius: 16px;
+    padding: 10px 22px;
+    margin-right: 12px;
+    color: #a9b3d1;
+    font-weight: 500;
+}
+
+QTabBar::tab:selected {
+    color: #f5f7ff;
+    background: rgba(94, 129, 244, 0.35);
+}
+
+QTabBar::tab:hover {
+    color: #f5f7ff;
+    background: rgba(94, 129, 244, 0.22);
+}
+
+#settingsLabel {
+    font-size: 15px;
+    font-weight: 500;
+    color: #c0cae9;
+}
+
+QComboBox#settingsCombo {
+    background: rgba(255, 255, 255, 0.06);
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    padding: 10px 16px;
+    min-width: 160px;
+}
+
+QComboBox#settingsCombo::drop-down {
+    border: none;
+}
+
+QComboBox#settingsCombo QAbstractItemView {
+    background: #161b2a;
+    color: #f5f7ff;
+    selection-background-color: rgba(94, 129, 244, 0.5);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+QCheckBox#settingsCheckBox {
+    padding: 6px 4px;
+    color: #d9e1ff;
+}
+
+QCheckBox#settingsCheckBox::indicator {
+    width: 18px;
+    height: 18px;
+    border-radius: 6px;
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    background: rgba(255, 255, 255, 0.06);
+    margin-right: 10px;
+}
+
+QCheckBox#settingsCheckBox::indicator:checked {
+    background: linear-gradient(135deg, #5e81f4, #7c4dff);
+    border-color: transparent;
+}
+
+QDialog#conversionDialog {
+    background: #15192a;
+    border-radius: 20px;
+}
+
+#dialogHeadline {
+    font-size: 18px;
+    font-weight: 600;
+}
+
+#dialogMessage {
+    color: #c7cff5;
+    font-size: 13px;
+}
+
+QPushButton#dialogCloseButton {
+    min-width: 100px;
 }

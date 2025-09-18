@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable, List, Sequence, Tuple
+from typing import Iterable, List, Sequence, Set, Tuple
 
 # ``pydub`` is an optional dependency during runtime because the GUI should be
 # able to start even if the package is missing.  The actual conversion logic
@@ -29,12 +29,29 @@ class ConversionRequest:
     input_paths: Sequence[Path]
     output_directory: Path
     output_format: str
+    overwrite_existing: bool = True
 
     def outputs(self) -> Iterable[Tuple[Path, Path]]:
-        """Yield tuples of (input_path, output_path) for the batch."""
+        """Yield tuples of ``(input_path, output_path)`` for the batch."""
+
+        allocated: Set[Path] = set()
 
         for source in self.input_paths:
-            destination = self.output_directory / f"{source.stem}.{self.output_format}"
+            base_destination = self.output_directory / f"{source.stem}.{self.output_format}"
+            destination = base_destination
+
+            if not self.overwrite_existing:
+                candidate = base_destination
+                index = 1
+                # Avoid both on-disk conflicts and duplicates within the batch.
+                while candidate.exists() or candidate in allocated:
+                    candidate = base_destination.with_stem(
+                        f"{base_destination.stem} ({index})"
+                    )
+                    index += 1
+                destination = candidate
+
+            allocated.add(destination)
             yield source, destination
 
 
@@ -54,7 +71,7 @@ class SoundConverter:
         """Run the conversion and return a status flag and message."""
 
         if not request.input_paths:
-            return False, "Không có tệp âm thanh nào được chọn."
+            return False, "No audio files were selected."
 
         output_format = request.output_format.lower()
         destination_root = request.output_directory
@@ -62,9 +79,9 @@ class SoundConverter:
         missing_inputs = [path for path in request.input_paths if not path.exists()]
         if missing_inputs:
             if len(missing_inputs) == 1:
-                return False, f"Không tìm thấy tệp {missing_inputs[0]}"
+                return False, f"The file '{missing_inputs[0]}' could not be found."
             joined = ", ".join(str(path) for path in missing_inputs)
-            return False, f"Không tìm thấy các tệp: {joined}"
+            return False, f"The following files are missing: {joined}"
 
         if AudioSegment is None:
             assert _IMPORT_ERROR is not None  # for type checkers
@@ -73,10 +90,10 @@ class SoundConverter:
             if missing_package in {"audioop", "pyaudioop"}:
                 return (
                     False,
-                    "Phiên bản Python hiện tại thiếu mô-đun 'audioop' mà `pydub` cần. "
-                    "Bạn có thể cài đặt gói tương thích `audioop-lts` (ví dụ: chạy "
-                    "`pip install audioop-lts`) hoặc chuyển sang phiên bản Python 3.12 "
-                    "trở xuống vốn bao gồm sẵn 'audioop'.",
+                    "The current Python build is missing the optional 'audioop' module "
+                    "required by pydub. Install the compatible 'audioop-lts' package "
+                    "(for example run `pip install audioop-lts`) or switch to Python "
+                    "3.12 or earlier where it is bundled by default.",
                 )
 
             if missing_package == "pydub":
@@ -86,8 +103,8 @@ class SoundConverter:
 
             return (
                 False,
-                "Không tìm thấy thư viện "
-                f"'{missing_package}'. Vui lòng cài đặt bằng lệnh {suggestion}.",
+                f"The dependency '{missing_package}' is missing. Please install it "
+                f"with {suggestion}.",
             )
 
         converted: List[Path] = []
@@ -117,8 +134,8 @@ class SoundConverter:
             if encoder is None:
                 return (
                     False,
-                    "Không tìm thấy chương trình 'ffmpeg' hoặc 'avconv'. "
-                    "Vui lòng cài đặt FFmpeg và đảm bảo nó nằm trong biến môi trường PATH.",
+                    "Neither 'ffmpeg' nor 'avconv' could be located. Install FFmpeg and "
+                    "ensure it is discoverable via the PATH environment variable.",
                 )
 
         for input_path, output_path in request.outputs():
@@ -129,13 +146,13 @@ class SoundConverter:
             except Exception as exc:  # pragma: no cover - thin wrapper
                 if len(request.input_paths) == 1:
                     return False, str(exc)
-                return False, f"Không thể chuyển đổi '{input_path.name}': {exc}"
+                return False, f"Could not convert '{input_path.name}': {exc}"
 
         if not converted:
-            return False, "Không thể chuyển đổi các tệp đã chọn."
+            return False, "None of the selected files could be converted."
 
         if len(converted) == 1:
-            return True, f"Đã lưu tệp tại {converted[0]}"
+            return True, f"Saved file to {converted[0]}"
 
         destination_text = destination_root if destination_root else converted[0].parent
-        return True, f"Đã chuyển đổi {len(converted)} tệp vào {destination_text}"
+        return True, f"Converted {len(converted)} files into {destination_text}"

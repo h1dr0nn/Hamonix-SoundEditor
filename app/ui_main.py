@@ -5,10 +5,12 @@ from __future__ import annotations
 from pathlib import Path
 from typing import List, Optional, Sequence, Set
 
-from PySide6.QtCore import Qt, QThread, Signal, Slot
-from PySide6.QtGui import QCloseEvent, QIcon
+from PySide6.QtCore import QSettings, Qt, QThread, QUrl, Signal, Slot
+from PySide6.QtGui import QCloseEvent, QDesktopServices, QIcon
 from PySide6.QtWidgets import (
+    QCheckBox,
     QComboBox,
+    QDialog,
     QFileDialog,
     QFrame,
     QHBoxLayout,
@@ -17,6 +19,7 @@ from PySide6.QtWidgets import (
     QMessageBox,
     QPushButton,
     QProgressBar,
+    QTabWidget,
     QVBoxLayout,
     QWidget,
 )
@@ -54,12 +57,12 @@ class DropArea(QFrame):
         layout = QVBoxLayout(self)
         layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
-        self._title = QLabel("Kéo và thả tệp âm thanh")
+        self._title = QLabel("Drop audio files")
         self._title.setObjectName("dropTitle")
         self._title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(self._title)
 
-        self._subtitle = QLabel("hoặc bấm để chọn từ máy của bạn")
+        self._subtitle = QLabel("…or click to browse")
         self._subtitle.setObjectName("dropSubtitle")
         self._subtitle.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(self._subtitle)
@@ -106,6 +109,64 @@ class DropArea(QFrame):
         self._subtitle.setText(subtitle)
 
 
+class ConversionDialog(QDialog):
+    """Modal dialog that communicates conversion progress and results."""
+
+    def __init__(self, parent: Optional[QWidget] = None) -> None:
+        super().__init__(parent)
+        self.setObjectName("conversionDialog")
+        self.setModal(True)
+        self.setWindowTitle("Converting…")
+        self.setWindowIcon(QIcon(str(resource_path("icons", "app.svg"))))
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(28, 28, 28, 28)
+        layout.setSpacing(18)
+
+        self._headline = QLabel("Converting audio files…")
+        self._headline.setObjectName("dialogHeadline")
+        layout.addWidget(self._headline)
+
+        self._progress = QProgressBar()
+        self._progress.setObjectName("dialogProgress")
+        self._progress.setRange(0, 0)
+        layout.addWidget(self._progress)
+
+        self._message = QLabel("Please wait while the files are processed.")
+        self._message.setObjectName("dialogMessage")
+        self._message.setWordWrap(True)
+        layout.addWidget(self._message)
+
+        button_row = QHBoxLayout()
+        button_row.addStretch()
+
+        self._close_button = QPushButton("Close")
+        self._close_button.setObjectName("dialogCloseButton")
+        self._close_button.setEnabled(False)
+        self._close_button.clicked.connect(self.accept)
+        button_row.addWidget(self._close_button)
+
+        layout.addLayout(button_row)
+
+    # ------------------------------------------------------------------
+    # API
+    # ------------------------------------------------------------------
+    def show_running(self) -> None:
+        self.setWindowTitle("Converting…")
+        self._headline.setText("Converting audio files…")
+        self._message.setText("Please wait while the files are processed.")
+        self._progress.setRange(0, 0)
+        self._close_button.setEnabled(False)
+
+    def show_finished(self, title: str, message: str) -> None:
+        self.setWindowTitle(title)
+        self._headline.setText(title)
+        self._message.setText(message)
+        self._progress.setRange(0, 1)
+        self._progress.setValue(1)
+        self._close_button.setEnabled(True)
+
+
 class MainWindow(QWidget):
     """The primary window managing user interaction."""
 
@@ -116,73 +177,131 @@ class MainWindow(QWidget):
         self.output_directory: Optional[Path] = None
         self._thread: Optional[QThread] = None
         self._worker: Optional[ConversionWorker] = None
+        self._active_request: Optional[ConversionRequest] = None
+        self._progress_dialog: Optional[ConversionDialog] = None
+
+        self._settings = QSettings("SoundConverterApp", "SOUND_CONVERTER")
+        self._load_preferences()
 
         self._setup_ui()
         self._apply_styles()
+        self._restore_initial_state()
+
+    # ------------------------------------------------------------------
+    # Preferences helpers
+    # ------------------------------------------------------------------
+    def _load_preferences(self) -> None:
+        self._pref_default_format = str(
+            self._settings.value("default_format", "ogg")
+        )
+        self._pref_overwrite_existing = self._get_bool_setting(
+            "overwrite_existing", True
+        )
+        self._pref_open_destination = self._get_bool_setting(
+            "open_destination", False
+        )
+        self._pref_remember_destination = self._get_bool_setting(
+            "remember_destination", True
+        )
+        last_directory = self._settings.value("last_output_directory", "")
+        self._pref_last_output_directory: Optional[Path]
+        if last_directory:
+            self._pref_last_output_directory = Path(str(last_directory))
+        else:
+            self._pref_last_output_directory = None
+
+    def _get_bool_setting(self, key: str, default: bool) -> bool:
+        value = self._settings.value(key, default)
+        if isinstance(value, bool):
+            return value
+        if value is None:
+            return default
+        return str(value).lower() in {"1", "true", "yes", "on"}
+
+    def _save_last_output_directory(self, directory: Path) -> None:
+        self._pref_last_output_directory = directory
+        if self._pref_remember_destination:
+            self._settings.setValue("last_output_directory", str(directory))
 
     # ------------------------------------------------------------------
     # UI setup
     # ------------------------------------------------------------------
     def _setup_ui(self) -> None:
-        self.setWindowTitle("Sound Converter")
+        self.setWindowTitle("SOUND CONVERTER")
         self.setWindowIcon(QIcon(str(resource_path("icons", "app.svg"))))
-        self.resize(620, 480)
-        self.setMinimumWidth(520)
+        self.resize(720, 520)
+        self.setMinimumWidth(560)
 
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(32, 32, 32, 32)
         main_layout.setSpacing(20)
 
-        header = QLabel("Sound Converter")
+        header = QLabel("SOUND CONVERTER")
         header.setObjectName("titleLabel")
         main_layout.addWidget(header)
+
+        self.tabs = QTabWidget()
+        self.tabs.setObjectName("mainTabs")
+        self.tabs.addTab(self._build_convert_tab(), "Convert")
+        self.tabs.addTab(self._build_settings_tab(), "Settings")
+        main_layout.addWidget(self.tabs)
+
+        self._apply_default_format()
+        self._sync_settings_controls()
+
+    def _build_convert_tab(self) -> QWidget:
+        tab = QWidget()
+        layout = QVBoxLayout(tab)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(20)
 
         self.drop_area = DropArea()
         self.drop_area.filesDropped.connect(self._handle_input_files)
         self.drop_area.clicked.connect(self._open_file_dialog)
-        main_layout.addWidget(self.drop_area)
+        layout.addWidget(self.drop_area)
 
-        self.input_label = QLabel("Chưa chọn tệp")
+        self.input_label = QLabel("No files selected")
         self.input_label.setObjectName("pathLabel")
         self.input_label.setWordWrap(True)
-        main_layout.addWidget(self.input_label)
+        layout.addWidget(self.input_label)
 
         file_actions = QHBoxLayout()
         file_actions.setSpacing(12)
 
-        self.browse_button = QPushButton("Chọn tệp âm thanh")
+        self.browse_button = QPushButton("Select audio files")
         self.browse_button.setObjectName("browseButton")
         self.browse_button.clicked.connect(self._open_file_dialog)
         file_actions.addWidget(self.browse_button)
 
-        self.clear_button = QPushButton("Xóa lựa chọn")
+        self.clear_button = QPushButton("Clear selection")
         self.clear_button.setObjectName("clearButton")
         self.clear_button.clicked.connect(self._clear_selection)
         self.clear_button.setEnabled(False)
         file_actions.addWidget(self.clear_button)
 
         file_actions.addStretch()
-        main_layout.addLayout(file_actions)
+        layout.addLayout(file_actions)
 
         format_layout = QHBoxLayout()
         format_layout.setSpacing(12)
 
-        format_label = QLabel("Định dạng xuất")
+        format_label = QLabel("Output format")
         format_label.setObjectName("sectionLabel")
         format_layout.addWidget(format_label)
 
         self.format_combo = QComboBox()
         self.format_combo.setObjectName("formatCombo")
-        self.format_combo.addItems(self.converter.available_formats())
-        self.format_combo.currentTextChanged.connect(self._update_output_preview)
+        self._available_formats = list(self.converter.available_formats())
+        self.format_combo.addItems(self._available_formats)
+        self.format_combo.currentTextChanged.connect(self._on_format_changed)
         format_layout.addWidget(self.format_combo)
         format_layout.addStretch()
-        main_layout.addLayout(format_layout)
+        layout.addLayout(format_layout)
 
         destination_layout = QVBoxLayout()
         destination_layout.setSpacing(8)
 
-        destination_header = QLabel("Nơi lưu kết quả")
+        destination_header = QLabel("Destination folder")
         destination_header.setObjectName("sectionLabel")
         destination_layout.addWidget(destination_header)
 
@@ -192,38 +311,111 @@ class MainWindow(QWidget):
         self.output_edit = QLineEdit()
         self.output_edit.setObjectName("outputEdit")
         self.output_edit.setReadOnly(True)
-        self.output_edit.setPlaceholderText("Đường dẫn file xuất sẽ hiển thị tại đây")
+        self.output_edit.setPlaceholderText("Converted files will be saved here")
         destination_controls.addWidget(self.output_edit)
 
-        self.destination_button = QPushButton("Chọn thư mục")
+        self.destination_button = QPushButton("Choose folder")
         self.destination_button.setObjectName("destinationButton")
         self.destination_button.clicked.connect(self._choose_output_directory)
         destination_controls.addWidget(self.destination_button)
 
         destination_layout.addLayout(destination_controls)
-        main_layout.addLayout(destination_layout)
-
-        self.progress_bar = QProgressBar()
-        self.progress_bar.setObjectName("progressBar")
-        self.progress_bar.setVisible(False)
-        self.progress_bar.setRange(0, 0)
-        main_layout.addWidget(self.progress_bar)
+        layout.addLayout(destination_layout)
 
         footer_layout = QHBoxLayout()
         footer_layout.setSpacing(12)
 
-        self.status_label = QLabel("Sẵn sàng")
+        self.status_label = QLabel("Ready")
         self.status_label.setObjectName("statusLabel")
         footer_layout.addWidget(self.status_label)
 
         footer_layout.addStretch()
 
-        self.export_button = QPushButton("Xuất file")
+        self.export_button = QPushButton("Start conversion")
         self.export_button.setObjectName("exportButton")
         self.export_button.clicked.connect(self._export_audio)
         footer_layout.addWidget(self.export_button)
 
-        main_layout.addLayout(footer_layout)
+        layout.addLayout(footer_layout)
+
+        return tab
+
+    def _build_settings_tab(self) -> QWidget:
+        tab = QWidget()
+        layout = QVBoxLayout(tab)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(18)
+
+        default_format_label = QLabel("Default output format")
+        default_format_label.setObjectName("settingsLabel")
+        layout.addWidget(default_format_label)
+
+        self.default_format_combo = QComboBox()
+        self.default_format_combo.setObjectName("settingsCombo")
+        self.default_format_combo.addItems(self._available_formats)
+        self.default_format_combo.currentTextChanged.connect(
+            self._on_default_format_changed
+        )
+        layout.addWidget(self.default_format_combo)
+
+        self.overwrite_checkbox = QCheckBox("Overwrite existing files")
+        self.overwrite_checkbox.setObjectName("settingsCheckBox")
+        self.overwrite_checkbox.toggled.connect(self._on_overwrite_toggled)
+        layout.addWidget(self.overwrite_checkbox)
+
+        self.open_destination_checkbox = QCheckBox(
+            "Open the destination folder when conversion completes"
+        )
+        self.open_destination_checkbox.setObjectName("settingsCheckBox")
+        self.open_destination_checkbox.toggled.connect(
+            self._on_open_destination_toggled
+        )
+        layout.addWidget(self.open_destination_checkbox)
+
+        self.remember_destination_checkbox = QCheckBox(
+            "Remember the last destination folder"
+        )
+        self.remember_destination_checkbox.setObjectName("settingsCheckBox")
+        self.remember_destination_checkbox.toggled.connect(
+            self._on_remember_destination_toggled
+        )
+        layout.addWidget(self.remember_destination_checkbox)
+
+        layout.addStretch()
+
+        return tab
+
+    def _apply_default_format(self) -> None:
+        target = (
+            self._pref_default_format
+            if self._pref_default_format in self._available_formats
+            else self._available_formats[0]
+        )
+        self._set_combo_value(self.format_combo, target)
+        self._set_combo_value(self.default_format_combo, target)
+
+    def _sync_settings_controls(self) -> None:
+        self.overwrite_checkbox.setChecked(self._pref_overwrite_existing)
+        self.open_destination_checkbox.setChecked(self._pref_open_destination)
+        self.remember_destination_checkbox.setChecked(
+            self._pref_remember_destination
+        )
+
+    def _set_combo_value(self, combo: QComboBox, value: str) -> None:
+        index = combo.findText(value)
+        if index >= 0:
+            block = combo.blockSignals(True)
+            combo.setCurrentIndex(index)
+            combo.blockSignals(block)
+
+    def _restore_initial_state(self) -> None:
+        if (
+            self._pref_remember_destination
+            and self._pref_last_output_directory
+            and self._pref_last_output_directory.exists()
+        ):
+            self.output_directory = self._pref_last_output_directory
+            self.output_edit.setText(str(self.output_directory))
 
     def _apply_styles(self) -> None:
         try:
@@ -237,7 +429,7 @@ class MainWindow(QWidget):
     def _open_file_dialog(self) -> None:
         file_paths, _ = QFileDialog.getOpenFileNames(
             self,
-            "Chọn tệp âm thanh",
+            "Select audio files",
             "",
             "Audio (*.mp3 *.wav *.ogg *.flac *.aac *.wma *.m4a *.aiff *.aif *.opus)",
         )
@@ -266,46 +458,53 @@ class MainWindow(QWidget):
         skipped_messages = []
         if missing:
             skipped_messages.append(
-                "Không thể tìm thấy: " + ", ".join(path.name for path in missing)
+                "Missing files: " + ", ".join(path.name for path in missing)
             )
 
         if unsupported:
             skipped_messages.append(
-                "Định dạng không hỗ trợ: "
-                + ", ".join(path.name for path in unsupported)
+                "Unsupported formats: " + ", ".join(path.name for path in unsupported)
             )
 
         if skipped_messages:
             QMessageBox.warning(
                 self,
-                "Một số tệp bị bỏ qua",
+                "Some files were skipped",
                 "\n".join(skipped_messages),
             )
 
         if not valid_files:
             QMessageBox.warning(
                 self,
-                "Không có tệp hợp lệ",
-                "Vui lòng chọn ít nhất một tệp âm thanh hợp lệ.",
+                "No valid files",
+                "Please select at least one supported audio file.",
             )
             return
 
         self.input_files = valid_files
-        if self.output_directory is None and self.input_files:
-            self.output_directory = self.input_files[0].parent
+        if self.output_directory is None:
+            if (
+                self._pref_remember_destination
+                and self._pref_last_output_directory
+                and self._pref_last_output_directory.exists()
+            ):
+                self.output_directory = self._pref_last_output_directory
+            else:
+                self.output_directory = self.input_files[0].parent
 
         if len(self.input_files) == 1:
             selected = self.input_files[0]
             self.input_label.setText(str(selected))
-            self.drop_area.set_description("Tệp đã được chọn", selected.name)
+            self.drop_area.set_description("File selected", selected.name)
         else:
             summary_lines = [path.name for path in self.input_files[:3]]
             remaining = len(self.input_files) - len(summary_lines)
             if remaining > 0:
-                summary_lines.append(f"... và {remaining} tệp khác")
+                summary_lines.append(f"…and {remaining} more")
             self.input_label.setText("\n".join(summary_lines))
             self.drop_area.set_description(
-                f"Đã chọn {len(self.input_files)} tệp", "Kéo thêm tệp để thay đổi"
+                f"{len(self.input_files)} files selected",
+                "Drop more files to replace the selection",
             )
 
         self.clear_button.setEnabled(True)
@@ -313,52 +512,88 @@ class MainWindow(QWidget):
 
     def _clear_selection(self) -> None:
         self.input_files = []
-        self.output_directory = None
-        self.drop_area.set_description("Kéo và thả tệp âm thanh", "hoặc bấm để chọn từ máy của bạn")
-        self.input_label.setText("Chưa chọn tệp")
-        self.output_edit.clear()
+        self.drop_area.set_description("Drop audio files", "…or click to browse")
+        self.input_label.setText("No files selected")
+        if (
+            self._pref_remember_destination
+            and self._pref_last_output_directory
+            and self._pref_last_output_directory.exists()
+        ):
+            self.output_directory = self._pref_last_output_directory
+            self.output_edit.setText(str(self.output_directory))
+        else:
+            self.output_directory = None
+            self.output_edit.clear()
         self.clear_button.setEnabled(False)
+        self.status_label.setText("Ready")
 
     def _choose_output_directory(self) -> None:
-        directory = QFileDialog.getExistingDirectory(self, "Chọn thư mục lưu")
+        directory = QFileDialog.getExistingDirectory(
+            self, "Select destination folder"
+        )
         if directory:
             self.output_directory = Path(directory)
+            self._save_last_output_directory(self.output_directory)
             self._update_output_preview()
 
     def _update_output_preview(self) -> None:
-        if not self.input_files:
+        if not self.output_directory and self.input_files:
+            self.output_directory = self.input_files[0].parent
+
+        if not self.output_directory:
             self.output_edit.clear()
+        else:
+            self.output_edit.setText(str(self.output_directory))
+
+        if not self.input_files:
+            self.status_label.setText("Ready")
             return
 
-        destination = self.output_directory or self.input_files[0].parent
-        output_format = self.format_combo.currentText()
+        format_name = self.format_combo.currentText()
         if len(self.input_files) == 1:
-            output_path = destination / f"{self.input_files[0].stem}.{output_format}"
-            self.output_edit.setText(str(output_path))
+            self.status_label.setText(
+                f"Ready to convert '{self.input_files[0].name}' to .{format_name}"
+            )
         else:
-            self.output_edit.setText(
-                f"Sẽ lưu {len(self.input_files)} tệp vào {destination}"
+            self.status_label.setText(
+                f"{len(self.input_files)} files will be converted to .{format_name}"
             )
 
     def _export_audio(self) -> None:
         if not self.input_files:
-            QMessageBox.warning(self, "Thiếu tệp", "Vui lòng chọn tệp âm thanh trước.")
+            QMessageBox.warning(
+                self,
+                "No files",
+                "Please choose audio files before starting the conversion.",
+            )
             return
 
         destination = self.output_directory or self.input_files[0].parent
-        if not destination:
-            QMessageBox.warning(self, "Thiếu nơi lưu", "Vui lòng chọn thư mục lưu kết quả.")
+        if destination is None:
+            QMessageBox.warning(
+                self,
+                "No destination",
+                "Please choose a folder to store the converted files.",
+            )
             return
+
+        self._save_last_output_directory(destination)
 
         request = ConversionRequest(
             input_paths=tuple(self.input_files),
             output_directory=destination,
             output_format=self.format_combo.currentText(),
+            overwrite_existing=self.overwrite_checkbox.isChecked(),
         )
 
         self._lock_ui()
-        self.status_label.setText("Đang chuyển đổi...")
-        self.progress_bar.setVisible(True)
+        self.status_label.setText("Converting…")
+
+        self._active_request = request
+        self._progress_dialog = ConversionDialog(self)
+        self._progress_dialog.show_running()
+        self._progress_dialog.finished.connect(self._on_progress_dialog_closed)
+        self._progress_dialog.show()
 
         self._thread = QThread(self)
         self._worker = ConversionWorker(self.converter, request)
@@ -376,18 +611,51 @@ class MainWindow(QWidget):
     def _on_conversion_finished(self) -> None:
         self._thread = None
         self._worker = None
-        self.progress_bar.setVisible(False)
+        self._active_request = None
         self._unlock_ui()
 
     @Slot(str)
     def _on_conversion_success(self, message: str) -> None:
-        self.status_label.setText("Hoàn tất")
-        QMessageBox.information(self, "Hoàn tất", message)
+        self.status_label.setText("Completed")
+        if self._progress_dialog:
+            self._progress_dialog.show_finished("Conversion completed", message)
+        if self.open_destination_checkbox.isChecked() and self.output_directory:
+            QDesktopServices.openUrl(QUrl.fromLocalFile(str(self.output_directory)))
 
     @Slot(str)
     def _on_conversion_error(self, message: str) -> None:
-        self.status_label.setText("Có lỗi xảy ra")
-        QMessageBox.critical(self, "Lỗi", message)
+        self.status_label.setText("Conversion failed")
+        if self._progress_dialog:
+            self._progress_dialog.show_finished("Conversion failed", message)
+
+    def _on_progress_dialog_closed(self, _: int) -> None:
+        self._progress_dialog = None
+
+    def _on_format_changed(self, _: str) -> None:
+        self._update_output_preview()
+
+    def _on_default_format_changed(self, value: str) -> None:
+        self._pref_default_format = value
+        self._settings.setValue("default_format", value)
+        self._set_combo_value(self.format_combo, value)
+        self._update_output_preview()
+
+    def _on_overwrite_toggled(self, checked: bool) -> None:
+        self._pref_overwrite_existing = checked
+        self._settings.setValue("overwrite_existing", checked)
+
+    def _on_open_destination_toggled(self, checked: bool) -> None:
+        self._pref_open_destination = checked
+        self._settings.setValue("open_destination", checked)
+
+    def _on_remember_destination_toggled(self, checked: bool) -> None:
+        self._pref_remember_destination = checked
+        self._settings.setValue("remember_destination", checked)
+        if not checked:
+            self._settings.remove("last_output_directory")
+            self._pref_last_output_directory = None
+        elif self.output_directory:
+            self._save_last_output_directory(self.output_directory)
 
     # ------------------------------------------------------------------
     # Helpers
