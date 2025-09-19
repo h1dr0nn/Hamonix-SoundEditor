@@ -5,7 +5,16 @@ from __future__ import annotations
 from pathlib import Path
 from typing import List, Optional, Sequence, Set
 
-from PySide6.QtCore import QByteArray, QSettings, Qt, QThread, QUrl, Signal, Slot
+from PySide6.QtCore import (
+    QByteArray,
+    QSettings,
+    QSize,
+    Qt,
+    QThread,
+    QUrl,
+    Signal,
+    Slot,
+)
 from PySide6.QtGui import QCloseEvent, QDesktopServices, QIcon
 from PySide6.QtWidgets import (
     QCheckBox,
@@ -276,7 +285,7 @@ class MainWindow(QWidget):
     def _build_convert_tab(self) -> QWidget:
         tab = QWidget()
         layout = QVBoxLayout(tab)
-        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setContentsMargins(0, 16, 0, 0)
         layout.setSpacing(20)
 
         self.drop_area = DropArea()
@@ -294,6 +303,10 @@ class MainWindow(QWidget):
 
         self.browse_button = QPushButton("Select audio files")
         self.browse_button.setObjectName("browseButton")
+        self.browse_button.setIcon(
+            QIcon(str(resource_path("icons", "folder.svg")))
+        )
+        self.browse_button.setIconSize(QSize(22, 22))
         self.browse_button.clicked.connect(self._open_file_dialog)
         file_actions.addWidget(self.browse_button)
 
@@ -340,6 +353,10 @@ class MainWindow(QWidget):
 
         self.destination_button = QPushButton("Choose folder")
         self.destination_button.setObjectName("destinationButton")
+        self.destination_button.setIcon(
+            QIcon(str(resource_path("icons", "folder.svg")))
+        )
+        self.destination_button.setIconSize(QSize(20, 20))
         self.destination_button.clicked.connect(self._choose_output_directory)
         destination_controls.addWidget(self.destination_button)
 
@@ -357,6 +374,10 @@ class MainWindow(QWidget):
 
         self.export_button = QPushButton("Start conversion")
         self.export_button.setObjectName("exportButton")
+        self.export_button.setIcon(
+            QIcon(str(resource_path("icons", "export.svg")))
+        )
+        self.export_button.setIconSize(QSize(22, 22))
         self.export_button.clicked.connect(self._export_audio)
         footer_layout.addWidget(self.export_button)
 
@@ -367,7 +388,7 @@ class MainWindow(QWidget):
     def _build_settings_tab(self) -> QWidget:
         tab = QWidget()
         layout = QVBoxLayout(tab)
-        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setContentsMargins(0, 16, 0, 0)
         layout.setSpacing(18)
 
         default_format_label = QLabel("Default output format")

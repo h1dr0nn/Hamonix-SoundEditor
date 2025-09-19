@@ -54,7 +54,7 @@ QPushButton {
     background-color: rgba(255, 255, 255, 0.06);
     border: 1px solid rgba(255, 255, 255, 0.08);
     border-radius: 14px;
-    padding: 12px 20px;
+    padding: 12px 24px;
     color: #f5f7ff;
     font-weight: 500;
 }
@@ -74,16 +74,9 @@ QPushButton:disabled {
     border-color: rgba(255, 255, 255, 0.04);
 }
 
-QPushButton#browseButton {
-    padding-left: 48px;
-    qproperty-icon: url("icons/folder.svg");
-    qproperty-iconSize: 22px 22px;
-}
-
+QPushButton#browseButton,
 QPushButton#destinationButton {
-    padding-left: 48px;
-    qproperty-icon: url("icons/folder.svg");
-    qproperty-iconSize: 20px 20px;
+    padding-left: 24px;
 }
 
 QPushButton#clearButton {
@@ -93,9 +86,8 @@ QPushButton#clearButton {
 QPushButton#exportButton {
     background: linear-gradient(135deg, #5e81f4, #7c4dff);
     border: none;
-    padding-left: 52px;
-    qproperty-icon: url("icons/export.svg");
-    qproperty-iconSize: 22px 22px;
+    padding-left: 24px;
+    padding-right: 28px;
 }
 
 QPushButton#exportButton:hover {
@@ -215,11 +207,21 @@ QCheckBox#settingsCheckBox::indicator {
     border: 1px solid rgba(255, 255, 255, 0.25);
     background: rgba(255, 255, 255, 0.06);
     margin-right: 10px;
+    image: none;
 }
 
 QCheckBox#settingsCheckBox::indicator:checked {
     background: linear-gradient(135deg, #5e81f4, #7c4dff);
-    border-color: transparent;
+    border-color: rgba(94, 129, 244, 0.7);
+    image: url("icons/check.svg");
+}
+
+QCheckBox#settingsCheckBox::indicator:unchecked:hover {
+    border-color: rgba(94, 129, 244, 0.55);
+}
+
+QCheckBox#settingsCheckBox::indicator:checked:hover {
+    border-color: rgba(94, 129, 244, 0.85);
 }
 
 QDialog#conversionDialog {
