@@ -3,10 +3,19 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import List, Optional, Sequence, Set
+from typing import List, Optional, Sequence, Set, Tuple
 
-from PySide6.QtCore import QByteArray, QSettings, Qt, QThread, QUrl, Signal, Slot
-from PySide6.QtGui import QCloseEvent, QDesktopServices, QIcon
+from PySide6.QtCore import (
+    QByteArray,
+    QSettings,
+    QSize,
+    Qt,
+    QThread,
+    QUrl,
+    Signal,
+    Slot,
+)
+from PySide6.QtGui import QCloseEvent, QDesktopServices, QIcon, QPainter, QPixmap
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -179,6 +188,7 @@ class MainWindow(QWidget):
         self._worker: Optional[ConversionWorker] = None
         self._active_request: Optional[ConversionRequest] = None
         self._progress_dialog: Optional[ConversionDialog] = None
+        self._icon_cache: dict[Tuple[str, int, int, int], Tuple[QIcon, QSize]] = {}
 
         self._settings = QSettings("SoundConverterApp", "SOUND_CONVERTER")
         self._load_preferences()
@@ -273,10 +283,62 @@ class MainWindow(QWidget):
         self._apply_default_format()
         self._sync_settings_controls()
 
+    def _apply_button_icon(
+        self, button: QPushButton, icon_name: str, base_size: QSize, padding: int
+    ) -> None:
+        icon, icon_size = self._load_padded_icon(icon_name, base_size, padding)
+        button.setIcon(icon)
+        button.setIconSize(icon_size)
+
+    def _load_padded_icon(
+        self, icon_name: str, base_size: QSize, padding: int
+    ) -> Tuple[QIcon, QSize]:
+        key = (icon_name, base_size.width(), base_size.height(), padding)
+        cached = self._icon_cache.get(key)
+        if cached is not None:
+            return cached
+
+        base_icon = QIcon(str(resource_path("icons", icon_name)))
+        icon = QIcon()
+        target_width = base_size.width() + padding
+
+        modes = (
+            QIcon.Mode.Normal,
+            QIcon.Mode.Disabled,
+            QIcon.Mode.Active,
+            QIcon.Mode.Selected,
+        )
+        states = (QIcon.State.Off, QIcon.State.On)
+
+        for mode in modes:
+            for state in states:
+                base_pixmap = base_icon.pixmap(base_size, mode, state)
+                if base_pixmap.isNull():
+                    base_pixmap = base_icon.pixmap(base_size, QIcon.Mode.Normal, state)
+                if base_pixmap.isNull():
+                    continue
+
+                device_ratio = base_pixmap.devicePixelRatio()
+                padded_width = int(round((base_size.width() + padding) * device_ratio))
+                padded_height = int(round(base_size.height() * device_ratio))
+                padded_pixmap = QPixmap(padded_width, padded_height)
+                padded_pixmap.fill(Qt.GlobalColor.transparent)
+                padded_pixmap.setDevicePixelRatio(device_ratio)
+
+                painter = QPainter(padded_pixmap)
+                painter.drawPixmap(0, 0, base_pixmap)
+                painter.end()
+
+                icon.addPixmap(padded_pixmap, mode, state)
+
+        icon_size = QSize(target_width, base_size.height())
+        self._icon_cache[key] = (icon, icon_size)
+        return icon, icon_size
+
     def _build_convert_tab(self) -> QWidget:
         tab = QWidget()
         layout = QVBoxLayout(tab)
-        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setContentsMargins(0, 16, 0, 0)
         layout.setSpacing(20)
 
         self.drop_area = DropArea()
@@ -294,6 +356,9 @@ class MainWindow(QWidget):
 
         self.browse_button = QPushButton("Select audio files")
         self.browse_button.setObjectName("browseButton")
+        self._apply_button_icon(
+            self.browse_button, "folder.svg", QSize(22, 22), padding=8
+        )
         self.browse_button.clicked.connect(self._open_file_dialog)
         file_actions.addWidget(self.browse_button)
 
@@ -340,6 +405,9 @@ class MainWindow(QWidget):
 
         self.destination_button = QPushButton("Choose folder")
         self.destination_button.setObjectName("destinationButton")
+        self._apply_button_icon(
+            self.destination_button, "folder.svg", QSize(20, 20), padding=8
+        )
         self.destination_button.clicked.connect(self._choose_output_directory)
         destination_controls.addWidget(self.destination_button)
 
@@ -357,6 +425,9 @@ class MainWindow(QWidget):
 
         self.export_button = QPushButton("Start conversion")
         self.export_button.setObjectName("exportButton")
+        self._apply_button_icon(
+            self.export_button, "export.svg", QSize(22, 22), padding=10
+        )
         self.export_button.clicked.connect(self._export_audio)
         footer_layout.addWidget(self.export_button)
 
@@ -367,7 +438,7 @@ class MainWindow(QWidget):
     def _build_settings_tab(self) -> QWidget:
         tab = QWidget()
         layout = QVBoxLayout(tab)
-        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setContentsMargins(0, 16, 0, 0)
         layout.setSpacing(18)
 
         default_format_label = QLabel("Default output format")
