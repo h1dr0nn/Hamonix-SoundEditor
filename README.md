@@ -1,65 +1,64 @@
 # Sound Converter App
 
-Ứng dụng desktop viết bằng Python/PySide6 giúp bạn kéo thả file âm thanh, chọn định dạng xuất và chuyển đổi nhanh chóng với giao diện hiện đại.
+A modern, lightweight desktop application for converting audio files, built with Python and PySide6.
 
-## Tính năng chính
+## Features
 
-- Giao diện tối giản, hiện đại với QSS tuỳ biến và icon vector.
-- Hỗ trợ kéo & thả hoặc duyệt nhiều file âm thanh từ máy.
-- Tuỳ chọn định dạng đầu ra (MP3, WAV, OGG, FLAC, AAC, WMA...).
-- Chọn thư mục lưu và xem trước đường dẫn xuất.
-- Xử lý chuyển đổi trên luồng phụ (worker thread) để UI luôn mượt.
+- **Modern Interface**: Clean, minimalist design with drag-and-drop support.
+- **Broad Format Support**: Convert between popular formats including MP3, WAV, OGG, FLAC, AAC, and WMA.
+- **Batch Processing**: Add multiple files and convert them simultaneously.
+- **Custom Output**: Easily select your destination folder.
+- **High Performance**: Background processing ensures the interface remains smooth and responsive during conversion.
 
-## Yêu cầu
+## Prerequisites
 
-- Python 3.9 trở lên.
-- [FFmpeg](https://ffmpeg.org/download.html) đã được cài và thêm vào `PATH` (pydub cần công cụ này để xuất âm thanh) **hoặc** sao chép binary tương ứng vào thư mục `app/resources/bin/`.
-- Các thư viện Python: PySide6 và pydub (cài đặt bằng `pip install -r requirements.txt`).
+Before running the application, ensure you have the following installed:
 
-## Cài đặt
+- **Python 3.9** or higher.
+- **FFmpeg**: This is required for audio processing.
+  - You must install FFmpeg and add it to your system's `PATH`.
+  - _Alternative_: You can place the `ffmpeg` executable directly in the `app/resources/bin/` directory.
 
-```bash
-pip install -r requirements.txt
-```
+## Installation
 
-## Chạy ứng dụng
+1.  **Clone the repository** (or download the source code):
+
+    ```bash
+    git clone https://github.com/your-username/SoundConverterApp.git
+    cd SoundConverterApp
+    ```
+
+2.  **Install dependencies**:
+    ```bash
+    pip install -r requirements.txt
+    ```
+
+## Usage
+
+To start the application, simply run:
 
 ```bash
 python main.py
 ```
 
-> Khi chạy trực tiếp từ mã nguồn, hãy sao chép file thực thi FFmpeg (ví dụ
-> `ffmpeg.exe` trên Windows hoặc `ffmpeg` trên Linux/macOS) vào thư mục
-> `app/resources/bin/`. Ứng dụng sẽ tự động ưu tiên binary nội bộ này, do đó bạn
-> không cần cấu hình thêm biến môi trường `PATH`.
+Once open, you can drag and drop your audio files into the window, select your desired output format, and click convert.
 
-## Đóng gói thành file `.exe`
+## Building from Source
 
-1. Cài đặt PyInstaller (chỉ cần thực hiện một lần):
+If you wish to create a standalone executable (e.g., `.exe` for Windows), follow these steps:
 
-   ```bash
-   pip install pyinstaller
-   ```
+1.  Install PyInstaller:
 
-2. Đóng gói ứng dụng (chạy lệnh trên Windows Terminal/PowerShell tại thư mục dự án):
+    ```bash
+    pip install pyinstaller
+    ```
 
-   ```powershell
-   pyinstaller --noconfirm --windowed --onefile ^
-     --name SoundConverter ^
-     --add-data "app/resources;app/resources" ^
-     main.py
-   ```
+2.  Build the application using the provided spec file:
 
-   Hoặc sử dụng file `setup.spec` đã cấu hình sẵn đường dẫn icon `.svg`:
+    ```bash
+    pyinstaller setup.spec
+    ```
 
-   ```powershell
-   pyinstaller setup.spec
-   ```
+3.  The executable will be generated in the `dist/` folder.
 
-3. File chạy sẽ nằm trong `dist/SoundConverter.exe` (chế độ `--onefile`).
-
-> PyInstaller vẫn bung tài nguyên ra thư mục tạm trong lúc chạy nên đừng gỡ
-> các đường dẫn `--add-data`/`datas` hiện có; chúng đảm bảo QSS, icon và FFmpeg
-> luôn được tìm thấy khi chạy file `.exe` đã đóng gói.
-
-> Lưu ý: Nếu build trên Linux/macOS hãy đổi dấu phân cách trong `--add-data` từ `;` thành `:`.
+> **Note**: For Linux/macOS builds, ensure the separator in the spec file or command matches your operating system (use `:` instead of `;` for path separators if running commands manually).
