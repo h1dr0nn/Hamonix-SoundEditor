@@ -5,8 +5,8 @@
     "version": "0.1.0"
   },
   "build": {
-    "beforeDevCommand": "npm run dev -- --host --port 5173 --prefix ../frontend",
-    "beforeBuildCommand": "npm run build --prefix ../frontend",
+    "beforeDevCommand": "cd frontend && npm run dev",
+    "beforeBuildCommand": "cd frontend && npm run build",
     "devPath": "http://localhost:5173",
     "distDir": "../frontend/dist"
   },
