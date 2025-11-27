@@ -83,13 +83,13 @@ Tauri (App Shell)
 
 **Status: 🚧 In Progress**
 
-- [ ] GitHub Actions:
-  - [ ] Setup Node + Rust + Python.
-  - [ ] Install dependencies (frontend + backend).
-  - [ ] Download FFmpeg.
-  - [ ] Copy Python + FFmpeg vào bundle.
-  - [ ] Build Tauri cho macOS + Windows.
-  - [ ] Auto-publish vào GitHub Releases (tag push).
+- [x] GitHub Actions:
+  - [x] Setup Node + Rust + Python.
+  - [x] Install dependencies (frontend + backend).
+  - [x] Download FFmpeg.
+  - [x] Copy Python + FFmpeg vào bundle.
+  - [x] Build Tauri cho macOS + Windows + Linux.
+  - [x] Auto-publish vào GitHub Releases (tag push).
 - [ ] Xác nhận app chạy ổn trên máy thật.
 
 ---

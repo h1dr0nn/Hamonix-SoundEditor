@@ -12,11 +12,30 @@ The CI/CD pipeline is configured in `.github/workflows/release.yml` and automati
 
 ## Triggering a Release
 
-### 1. Create a Version Tag
+### Important: Build Branch Required
+
+The CI/CD workflow **always builds from the `build` branch**, regardless of where you push the tag. This ensures consistent, production-ready code.
+
+**Workflow**:
+
+1. Merge your changes into the `build` branch
+2. Push a version tag from any branch (usually `main`)
+3. CI/CD automatically checks out `build` branch for building
+
+### 1. Prepare the Build Branch
 
 ```bash
-# Update version in config files first (already done for v1.0.0)
-# Then create and push a tag
+# Update build branch with latest main
+git checkout build
+git merge main
+git push origin build
+```
+
+### 2. Create and Push Version Tag
+
+```bash
+# From any branch (usually main)
+git checkout main
 git tag v1.0.0
 git push origin v1.0.0
 ```

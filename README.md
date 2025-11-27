@@ -100,12 +100,18 @@ The bundled app will be in `src-tauri/target/release/bundle/`.
 The project includes automated multi-platform builds via GitHub Actions:
 
 ```bash
-# Create and push a version tag to trigger release build
+# 1. Merge to build branch
+git checkout build
+git merge main
+git push origin build
+
+# 2. Create and push a version tag to trigger release build
+git checkout main
 git tag v1.0.0
 git push origin v1.0.0
 ```
 
-This will automatically build for:
+This will automatically build from the `build` branch for:
 
 - macOS (Apple Silicon + Intel)
 - Windows (x64)

@@ -191,6 +191,8 @@ def handle_trimming(data: dict) -> dict:
         overwrite_existing=overwrite
     )
 
+    result = SilenceTrimmer.process(request)
+
     return {
         "status": "success" if result.success else "error",
         "message": result.message,
