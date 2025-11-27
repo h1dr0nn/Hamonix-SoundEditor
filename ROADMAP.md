@@ -41,18 +41,18 @@ Tauri (App Shell)
 
 ### 🎨 **Phase 2 — UI/UX (iOS/macOS style)**
 
-**Status: Pending**
+**Status: ✅ Complete**
 
-- [ ] Thiết kế layout chính: sidebar + content area.
-- [ ] Glassmorphism: blur, semi-transparent layer.
-- [ ] Component:
-  - [ ] File list panel.
-  - [ ] Format selector.
-  - [ ] Output folder chooser.
-  - [ ] Progress bar / processing indicator.
-  - [ ] Toast notifications.
-- [ ] Light/Dark theme theo phong cách macOS Sonoma.
-- [ ] Transition/Animation (150–250ms).
+- [x] Thiết kế layout chính: sidebar + content area.
+- [x] Glassmorphism: blur, semi-transparent layer.
+- [x] Component:
+  - [x] File list panel.
+  - [x] Format selector.
+  - [x] Output folder chooser.
+  - [x] Progress bar / processing indicator.
+  - [x] Toast notifications.
+- [x] Light/Dark theme theo phong cách macOS Sonoma.
+- [x] Transition/Animation (150–250ms).
 
 ---
 
