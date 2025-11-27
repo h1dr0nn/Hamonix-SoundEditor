@@ -4,9 +4,18 @@ use crate::core::logging::log_message;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::io::{BufRead, BufReader, Write};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use tauri::Manager;
+
+#[derive(Debug)]
+struct PythonResolution {
+    command: PathBuf,
+    backend_path: PathBuf,
+    bin_dir: Option<PathBuf>,
+    python_home: Option<PathBuf>,
+    uses_embedded: bool,
+}
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ConvertPayload {
@@ -28,7 +37,7 @@ pub fn execute_python_conversion(
     app: tauri::AppHandle,
     payload: ConvertPayload,
 ) -> Result<BackendResult, String> {
-    let (python_cmd, backend_path) = resolve_python(&app)?;
+    let resolution = resolve_python(&app)?;
 
     let json_input = serde_json::to_string(&serde_json::json!({
         "operation": "convert",
@@ -40,14 +49,46 @@ pub fn execute_python_conversion(
 
     log_message(
         "tauri",
-        &format!("Spawning python backend at {}", backend_path.display()),
+        &format!(
+            "Spawning python backend at {} (embedded={})",
+            resolution.backend_path.display(),
+            resolution.uses_embedded,
+        ),
     );
 
-    let mut child = Command::new(&python_cmd)
-        .arg(&backend_path)
+    let mut command = Command::new(&resolution.command);
+    command
+        .arg(&resolution.backend_path)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
+        .stderr(Stdio::piped());
+
+    if let Some(bin_dir) = resolution.bin_dir.as_ref() {
+        let bin_dir_str = bin_dir.to_string_lossy().to_string();
+        command.env("SOUNDCONVERTER_BIN_DIR", &bin_dir_str);
+
+        if let Some(path) = std::env::var_os("PATH") {
+            let mut entries = std::env::split_paths(&path).collect::<Vec<_>>();
+            if !entries.contains(bin_dir) {
+                entries.insert(0, bin_dir.clone());
+                let merged = std::env::join_paths(entries)
+                    .map_err(|e| format!("Unable to join PATH entries: {}", e))?;
+                command.env("PATH", merged);
+            }
+        } else {
+            command.env("PATH", &bin_dir_str);
+        }
+    }
+
+    if let Some(python_home) = resolution.python_home.as_ref() {
+        command.env("PYTHONHOME", python_home);
+    }
+
+    command
+        .env("PYTHONUNBUFFERED", "1")
+        .env("PYTHONDONTWRITEBYTECODE", "1");
+
+    let mut child = command
         .spawn()
         .map_err(|e| format!("Failed to spawn Python process: {}", e))?;
 
@@ -152,22 +193,7 @@ pub fn execute_python_conversion(
     final_result.ok_or_else(|| "Python backend did not return a final status".to_string())
 }
 
-fn resolve_python(app: &tauri::AppHandle) -> Result<(String, PathBuf), String> {
-    let python_candidates = [
-        app.path_resolver().resolve_resource("bin/python"),
-        app.path_resolver().resolve_resource("bin/python.exe"),
-        app.path_resolver().resolve_resource("src-tauri/bin/python"),
-        app.path_resolver()
-            .resolve_resource("src-tauri/bin/python.exe"),
-    ];
-
-    let python_bin = python_candidates
-        .iter()
-        .flatten()
-        .find(|path| path.exists())
-        .map(|path| path.to_string_lossy().to_string())
-        .unwrap_or_else(|| "python3".to_string());
-
+fn resolve_python(app: &tauri::AppHandle) -> Result<PythonResolution, String> {
     let backend_path = app
         .path_resolver()
         .resolve_resource("backend/main.py")
@@ -177,5 +203,70 @@ fn resolve_python(app: &tauri::AppHandle) -> Result<(String, PathBuf), String> {
         return Err("Unable to locate backend/main.py".to_string());
     }
 
-    Ok((python_bin, backend_path))
+    let bin_root_candidates = [
+        app.path_resolver().resolve_resource("bin"),
+        app.path_resolver().resolve_resource("src-tauri/bin"),
+    ];
+
+    let bin_root = bin_root_candidates
+        .into_iter()
+        .flatten()
+        .find(|path| path.exists());
+    let python_candidates = bin_root
+        .iter()
+        .flat_map(|bin_root| embedded_python_candidates(bin_root))
+        .collect::<Vec<_>>();
+
+    let embedded_python = python_candidates.iter().find(|path| path.exists());
+
+    let uses_embedded = embedded_python.is_some();
+    let python_cmd = embedded_python
+        .cloned()
+        .or_else(|| {
+            if cfg!(debug_assertions) {
+                log_message(
+                    "tauri",
+                    "Embedded python runtime was not found. Falling back to system python for dev build.",
+                );
+                Some(PathBuf::from("python3"))
+            } else {
+                None
+            }
+        })
+        .ok_or_else(|| {
+            "Embedded Python runtime missing. Place it under src-tauri/bin/python".to_string()
+        })?;
+
+    let python_home = embedded_python
+        .as_ref()
+        .and_then(|bin| derive_python_home(bin.as_path()));
+
+    Ok(PythonResolution {
+        command: python_cmd,
+        backend_path,
+        bin_dir: bin_root,
+        python_home,
+        uses_embedded,
+    })
+}
+
+fn embedded_python_candidates(bin_root: &Path) -> Vec<PathBuf> {
+    let python_dir = bin_root.join("python");
+    vec![
+        python_dir.join("python.exe"),
+        python_dir.join("python"),
+        python_dir.join("python3"),
+        python_dir.join("bin").join("python3"),
+        python_dir.join("bin").join("python"),
+    ]
+}
+
+fn derive_python_home(python_bin: &Path) -> Option<PathBuf> {
+    let parent = python_bin.parent()?;
+
+    if parent.file_name().is_some_and(|name| name == "bin") {
+        parent.parent().map(|path| path.to_path_buf())
+    } else {
+        Some(parent.to_path_buf())
+    }
 }
