@@ -1,0 +1,466 @@
+name: Release Build
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+  workflow_dispatch: # Allow manual trigger for testing
+
+env:
+  PYTHON_VERSION: "3.11"
+
+jobs:
+  create-release:
+    runs-on: ubuntu-latest
+    outputs:
+      release_id: ${{ steps.create-release.outputs.id }}
+      upload_url: ${{ steps.create-release.outputs.upload_url }}
+    steps:
+      - name: Create Release
+        id: create-release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.ref_name }}
+          release_name: Harmonix SE ${{ github.ref_name }}
+          body: |
+            ## Harmonix SE ${{ github.ref_name }}
+
+            ### Downloads
+
+            **macOS**:
+            - Apple Silicon (M1/M2/M3): `Harmonix-SE-*-macOS-arm64.*`
+            - Intel: `Harmonix-SE-*-macOS-x64.*`
+
+            **Windows**:
+            - MSI Installer (recommended): `*.msi`
+            - NSIS Installer: `*_setup.exe`
+            - Portable: `*.exe`
+
+            **Linux**:
+            - AppImage (portable): `*.AppImage`
+            - Debian/Ubuntu: `*.deb`
+
+            ### What's New
+            - See commit history for changes
+
+            ### System Requirements
+            - macOS 10.15+ (Catalina or later)
+            - Windows 10+ (64-bit)
+            - Linux (x64, glibc 2.31+)
+          draft: false
+          prerelease: false
+
+  build-macos:
+    needs: create-release
+    strategy:
+      matrix:
+        include:
+          - target: aarch64-apple-darwin
+            platform: macos-latest
+            arch: arm64
+          - target: x86_64-apple-darwin
+            platform: macos-latest
+            arch: x64
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: build # Always build from 'build' branch
+          fetch-depth: 0 # Fetch all history for proper version detection
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: "./src-tauri -> target"
+
+      - name: Install frontend dependencies
+        run: |
+          cd frontend
+          npm ci
+
+      - name: Download binaries (Python + FFmpeg)
+        run: |
+          chmod +x scripts/download-binaries.sh
+          ./scripts/download-binaries.sh
+        shell: bash
+
+      - name: Install backend dependencies
+        run: |
+          PYTHON_BIN="./src-tauri/binaries/python-${{ matrix.target }}/bin/python3"
+          if [ -f "$PYTHON_BIN" ]; then
+            echo "Installing backend dependencies with bundled Python..."
+            $PYTHON_BIN -m pip install --upgrade pip
+            $PYTHON_BIN -m pip install -r requirements.txt
+          else
+            echo "Error: Bundled Python not found at $PYTHON_BIN"
+            exit 1
+          fi
+        shell: bash
+
+      - name: Verify FFmpeg
+        run: |
+          FFMPEG_BIN="./src-tauri/binaries/ffmpeg-${{ matrix.target }}"
+          if [ -f "$FFMPEG_BIN" ]; then
+            echo "✓ FFmpeg found at $FFMPEG_BIN"
+            ls -lh "$FFMPEG_BIN"
+          else
+            echo "Error: FFmpeg not found at $FFMPEG_BIN"
+            exit 1
+          fi
+        shell: bash
+
+      - name: Build Tauri app
+        run: |
+          cd frontend
+          npm run tauri build -- --target ${{ matrix.target }}
+        env:
+          TAURI_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
+          TAURI_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
+
+      - name: Package artifacts
+        id: package
+        run: |
+          cd src-tauri/target/${{ matrix.target }}/release/bundle
+
+          # Find and package .app
+          if [ -d "macos" ]; then
+            cd macos
+            APP_NAME=$(ls -d *.app | head -n 1)
+            if [ -n "$APP_NAME" ]; then
+              tar -czf "Harmonix-SE-${{ github.ref_name }}-macOS-${{ matrix.arch }}.app.tar.gz" "$APP_NAME"
+              echo "app_archive=Harmonix-SE-${{ github.ref_name }}-macOS-${{ matrix.arch }}.app.tar.gz" >> $GITHUB_OUTPUT
+            fi
+            
+            # Check for DMG
+            DMG_NAME=$(ls *.dmg 2>/dev/null | head -n 1)
+            if [ -n "$DMG_NAME" ]; then
+              mv "$DMG_NAME" "Harmonix-SE-${{ github.ref_name }}-macOS-${{ matrix.arch }}.dmg"
+              echo "dmg_file=Harmonix-SE-${{ github.ref_name }}-macOS-${{ matrix.arch }}.dmg" >> $GITHUB_OUTPUT
+            fi
+          fi
+        shell: bash
+
+      - name: Upload .app archive
+        if: steps.package.outputs.app_archive
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ needs.create-release.outputs.upload_url }}
+          asset_path: src-tauri/target/${{ matrix.target }}/release/bundle/macos/${{ steps.package.outputs.app_archive }}
+          asset_name: ${{ steps.package.outputs.app_archive }}
+          asset_content_type: application/gzip
+
+      - name: Upload DMG
+        if: steps.package.outputs.dmg_file
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ needs.create-release.outputs.upload_url }}
+          asset_path: src-tauri/target/${{ matrix.target }}/release/bundle/macos/${{ steps.package.outputs.dmg_file }}
+          asset_name: ${{ steps.package.outputs.dmg_file }}
+          asset_content_type: application/x-apple-diskimage
+
+      - name: Upload build logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-logs-macos-${{ matrix.arch }}
+          path: |
+            src-tauri/target/${{ matrix.target }}/release/build.log
+            ~/.tauri/logs/
+
+  build-windows:
+    needs: create-release
+    runs-on: windows-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: build # Always build from 'build' branch
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: "./src-tauri -> target"
+
+      - name: Install frontend dependencies
+        run: |
+          cd frontend
+          npm ci
+
+      - name: Download binaries (Python + FFmpeg)
+        run: |
+          bash scripts/download-binaries.sh
+        shell: bash
+
+      - name: Install backend dependencies
+        run: |
+          $PYTHON_BIN = "src-tauri/binaries/python-x86_64-pc-windows-msvc/python.exe"
+          if (Test-Path $PYTHON_BIN) {
+            Write-Host "Installing backend dependencies with bundled Python..."
+            & $PYTHON_BIN -m pip install --upgrade pip
+            & $PYTHON_BIN -m pip install -r requirements.txt
+          } else {
+            Write-Host "Error: Bundled Python not found at $PYTHON_BIN"
+            exit 1
+          }
+        shell: powershell
+
+      - name: Verify FFmpeg
+        run: |
+          $FFMPEG_BIN = "src-tauri/binaries/ffmpeg-x86_64-pc-windows-msvc.exe"
+          if (Test-Path $FFMPEG_BIN) {
+            Write-Host "✓ FFmpeg found at $FFMPEG_BIN"
+            Get-Item $FFMPEG_BIN | Select-Object Name,Length
+          } else {
+            Write-Host "Error: FFmpeg not found at $FFMPEG_BIN"
+            exit 1
+          }
+        shell: powershell
+
+      - name: Build Tauri app
+        run: |
+          cd frontend
+          npm run tauri build
+        env:
+          TAURI_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
+          TAURI_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
+
+      - name: Find and rename artifacts
+        id: artifacts
+        run: |
+          $bundleDir = "src-tauri/target/release/bundle"
+          $version = "${{ github.ref_name }}"
+
+          # Find MSI
+          $msi = Get-ChildItem -Path "$bundleDir/msi" -Filter "*.msi" -ErrorAction SilentlyContinue | Select-Object -First 1
+          if ($msi) {
+            $newMsiName = "Harmonix-SE-$version-Windows-x64.msi"
+            Copy-Item $msi.FullName -Destination "$bundleDir/$newMsiName"
+            echo "msi_file=$newMsiName" >> $env:GITHUB_OUTPUT
+          }
+
+          # Find NSIS installer
+          $nsis = Get-ChildItem -Path "$bundleDir/nsis" -Filter "*_setup.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
+          if ($nsis) {
+            $newNsisName = "Harmonix-SE-$version-Windows-x64_setup.exe"
+            Copy-Item $nsis.FullName -Destination "$bundleDir/$newNsisName"
+            echo "nsis_file=$newNsisName" >> $env:GITHUB_OUTPUT
+          }
+
+          # Find standalone exe
+          $exe = Get-ChildItem -Path "src-tauri/target/release" -Filter "*.exe" -Exclude "*_setup.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
+          if ($exe) {
+            $newExeName = "Harmonix-SE-$version-Windows-x64.exe"
+            Copy-Item $exe.FullName -Destination "$bundleDir/$newExeName"
+            echo "exe_file=$newExeName" >> $env:GITHUB_OUTPUT
+          }
+        shell: powershell
+
+      - name: Upload MSI
+        if: steps.artifacts.outputs.msi_file
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ needs.create-release.outputs.upload_url }}
+          asset_path: src-tauri/target/release/bundle/${{ steps.artifacts.outputs.msi_file }}
+          asset_name: ${{ steps.artifacts.outputs.msi_file }}
+          asset_content_type: application/x-msi
+
+      - name: Upload NSIS installer
+        if: steps.artifacts.outputs.nsis_file
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ needs.create-release.outputs.upload_url }}
+          asset_path: src-tauri/target/release/bundle/${{ steps.artifacts.outputs.nsis_file }}
+          asset_name: ${{ steps.artifacts.outputs.nsis_file }}
+          asset_content_type: application/x-msdownload
+
+      - name: Upload standalone EXE
+        if: steps.artifacts.outputs.exe_file
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ needs.create-release.outputs.upload_url }}
+          asset_path: src-tauri/target/release/bundle/${{ steps.artifacts.outputs.exe_file }}
+          asset_name: ${{ steps.artifacts.outputs.exe_file }}
+          asset_content_type: application/x-msdownload
+
+      - name: Upload build logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-logs-windows
+          path: |
+            src-tauri/target/release/build.log
+            %USERPROFILE%\.tauri\logs\
+
+  build-linux:
+    needs: create-release
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: build # Always build from 'build' branch
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.0-dev \
+            build-essential \
+            curl \
+            wget \
+            file \
+            libssl-dev \
+            libgtk-3-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: "./src-tauri -> target"
+
+      - name: Install frontend dependencies
+        run: |
+          cd frontend
+          npm ci
+
+      - name: Download binaries (Python + FFmpeg)
+        run: |
+          chmod +x scripts/download-binaries.sh
+          # Note: download-binaries.sh needs Linux support added
+          # For now, use system Python and install FFmpeg
+          sudo apt-get install -y ffmpeg
+
+      - name: Install backend dependencies
+        run: |
+          python3 -m pip install --upgrade pip
+          python3 -m pip install -r requirements.txt
+
+      - name: Build Tauri app
+        run: |
+          cd frontend
+          npm run tauri build
+        env:
+          TAURI_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
+          TAURI_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
+
+      - name: Find and rename artifacts
+        id: artifacts
+        run: |
+          BUNDLE_DIR="src-tauri/target/release/bundle"
+          VERSION="${{ github.ref_name }}"
+
+          # Find AppImage
+          if [ -d "$BUNDLE_DIR/appimage" ]; then
+            APPIMAGE=$(find "$BUNDLE_DIR/appimage" -name "*.AppImage" | head -n 1)
+            if [ -n "$APPIMAGE" ]; then
+              NEW_NAME="Harmonix-SE-$VERSION-Linux-x64.AppImage"
+              cp "$APPIMAGE" "$BUNDLE_DIR/$NEW_NAME"
+              echo "appimage_file=$NEW_NAME" >> $GITHUB_OUTPUT
+            fi
+          fi
+
+          # Find DEB
+          if [ -d "$BUNDLE_DIR/deb" ]; then
+            DEB=$(find "$BUNDLE_DIR/deb" -name "*.deb" | head -n 1)
+            if [ -n "$DEB" ]; then
+              NEW_NAME="Harmonix-SE-$VERSION-Linux-x64.deb"
+              cp "$DEB" "$BUNDLE_DIR/$NEW_NAME"
+              echo "deb_file=$NEW_NAME" >> $GITHUB_OUTPUT
+            fi
+          fi
+
+      - name: Upload AppImage
+        if: steps.artifacts.outputs.appimage_file
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ needs.create-release.outputs.upload_url }}
+          asset_path: src-tauri/target/release/bundle/${{ steps.artifacts.outputs.appimage_file }}
+          asset_name: ${{ steps.artifacts.outputs.appimage_file }}
+          asset_content_type: application/x-executable
+
+      - name: Upload DEB
+        if: steps.artifacts.outputs.deb_file
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ needs.create-release.outputs.upload_url }}
+          asset_path: src-tauri/target/release/bundle/${{ steps.artifacts.outputs.deb_file }}
+          asset_name: ${{ steps.artifacts.outputs.deb_file }}
+          asset_content_type: application/vnd.debian.binary-package
+
+      - name: Upload build logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-logs-linux
+          path: |
+            src-tauri/target/release/build.log
+            ~/.tauri/logs/

@@ -12,6 +12,7 @@ import { ToastMessage } from '../components/ToastMessage';
 import { ModeSelector } from '../components/ModeSelector';
 import { MasterControls } from '../components/MasterControls';
 import { TrimControls } from '../components/TrimControls';
+import { ModifyControls } from '../components/ModifyControls';
 import { ErrorModal } from '../components/ErrorModal';
 import { useTheme } from '../hooks/useTheme';
 import { useConvertAudio } from '../hooks/useTauriCommand';
@@ -35,7 +36,7 @@ export function HomePage({
   const { settings } = useSettingsContext();
 
   // Mode state
-  const [mode, setMode] = useState('convert'); // 'convert' | 'master' | 'trim'
+  const [mode, setMode] = useState('format'); // 'format' | 'enhance' | 'clean' | 'modify'
 
   // Convert mode - use default from settings
   const [selectedFormat, setSelectedFormat] = useState(settings.defaultFormat || 'AAC');
@@ -54,6 +55,15 @@ export function HomePage({
   const [trimMinSilence, setTrimMinSilence] = useState(500);
   const [trimPadding, setTrimPadding] = useState(0);
 
+  // Modify mode
+  const [modifyParams, setModifyParams] = useState({
+    speed: 1.0,
+    pitch: 0,
+    cutStart: 0,
+    cutEnd: 100,
+    isCutEnabled: false
+  });
+
   // Progress tracking
   const [progress, setProgress] = useState(0);
   const [currentFile, setCurrentFile] = useState('');
@@ -62,6 +72,16 @@ export function HomePage({
   // Error handling
   const [errorFiles, setErrorFiles] = useState([]);
   const [toast, setToast] = useState(null);
+
+  // Session summary
+  const sessionSummary = {
+    filesCount: files.length,
+    format: mode === 'format' ? selectedFormat : 
+            mode === 'enhance' ? masterPreset : 
+            mode === 'clean' ? 'Auto Trim' : 
+            mode === 'modify' ? `Speed ${modifyParams.speed}x` : 'Modify',
+    status: processingStatus
+  };
 
   // Sync default format from settings
   useEffect(() => {
@@ -272,13 +292,13 @@ export function HomePage({
       concurrent_files: parseInt(settings.concurrentFiles) || 2,
     };
 
-    if (mode === 'convert') {
+    if (mode === 'format') {
       return {
         operation: 'convert',
         ...basePayload,
         format: selectedFormat.toLowerCase()
       };
-    } else if (mode === 'master') {
+    } else if (mode === 'enhance') {
       return {
         operation: 'master',
         ...basePayload,
@@ -288,7 +308,7 @@ export function HomePage({
         preset: masterPreset,
         parameters: masterParams
       };
-    } else if (mode === 'trim') {
+    } else if (mode === 'clean') {
       return {
         operation: 'trim',
         ...basePayload,
@@ -298,6 +318,18 @@ export function HomePage({
         silence_threshold: trimThreshold,
         minimum_silence_ms: trimMinSilence,
         padding_ms: trimPadding
+      };
+    } else if (mode === 'modify') {
+      return {
+        operation: 'modify',
+        ...basePayload,
+        format: 'wav',  // Dummy value for Rust validation
+        input_paths: filePaths,  // For Python backend
+        output_directory: outputFolder || './',
+        speed: modifyParams.speed,
+        pitch: modifyParams.pitch,
+        cut_start: modifyParams.cutStart,
+        cut_end: modifyParams.cutEnd
       };
     }
   };
@@ -455,13 +487,6 @@ export function HomePage({
     };
   }, [files]);
 
-  // Calculate session summary
-  const sessionSummary = {
-    filesCount: files.length,
-    format: mode === 'convert' ? selectedFormat : mode === 'master' ? `Master (${masterPreset})` : 'Trim',
-    status: processingStatus
-  };
-
   const hasReadyFiles = files.some(f => f.status === 'ready');
   const canProcess = hasReadyFiles && outputFolder && !converting;
 
@@ -475,7 +500,7 @@ export function HomePage({
         <header className={`flex flex-col gap-4 rounded-card border ${themeClasses.card} p-5 shadow-soft backdrop-blur-[32px] transition duration-smooth`}>
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div>
-              <p className="text-xs uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">Sound Converter</p>
+              <p className="text-xs uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">Harmonix SE</p>
               <h1 className="text-2xl font-semibold text-slate-900 dark:text-white">Audio Processing Suite</h1>
               <p className="text-sm text-slate-600 dark:text-slate-300">Convert, master, and trim your audio files</p>
             </div>
@@ -501,9 +526,10 @@ export function HomePage({
                 <p className="text-xs uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">Workspace</p>
                 <h2 className="text-xl font-semibold text-slate-900 dark:text-white">Session overview</h2>
                 <p className="text-sm text-slate-600 dark:text-slate-300">
-                  {mode === 'convert' && 'Convert audio between different formats'}
-                  {mode === 'master' && 'Enhance audio quality with professional presets'}
-                  {mode === 'trim' && 'Automatically remove silence from recordings'}
+                  {mode === 'format' && 'Convert audio between different formats'}
+                  {mode === 'enhance' && 'Enhance audio quality with professional presets'}
+                  {mode === 'clean' && 'Automatically remove silence from recordings'}
+                  {mode === 'modify' && 'Change speed, pitch, and cut audio'}
                 </p>
               </div>
               <div className={`space-y-3 rounded-2xl border ${themeClasses.surface} p-4`}>
@@ -529,10 +555,10 @@ export function HomePage({
             <section className={`grid gap-4 rounded-card border ${themeClasses.card} p-5 shadow-soft backdrop-blur-[32px] transition duration-smooth lg:grid-cols-[1.5fr,1fr]`}>
               <DragDropArea onFilesAdded={handleFilesAdded} />
               <div className={`flex flex-col justify-between gap-6 rounded-card border ${themeClasses.surface} p-4`}>
-                {mode === 'convert' && (
+                {mode === 'format' && (
                   <FormatSelector formats={formatOptions} selected={selectedFormat} onSelect={setSelectedFormat} />
                 )}
-                {mode === 'master' && (
+                {mode === 'enhance' && (
                   <MasterControls 
                     preset={masterPreset}
                     onPresetChange={setMasterPreset}
@@ -540,7 +566,7 @@ export function HomePage({
                     onParametersChange={setMasterParams}
                   />
                 )}
-                {mode === 'trim' && (
+                {mode === 'clean' && (
                   <TrimControls
                     threshold={trimThreshold}
                     onThresholdChange={setTrimThreshold}
@@ -548,6 +574,19 @@ export function HomePage({
                     onMinSilenceChange={setTrimMinSilence}
                     padding={trimPadding}
                     onPaddingChange={setTrimPadding}
+                  />
+                )}
+                {mode === 'modify' && (
+                  <ModifyControls
+                    parameters={modifyParams}
+                    onParametersChange={setModifyParams}
+                    duration={(() => {
+                      if (files.length === 0) return 180; // Default 3 mins if no files
+                      const durationStr = files[0].duration;
+                      if (!durationStr || durationStr === '00:00') return 180;
+                      const [mins, secs] = durationStr.split(':').map(Number);
+                      return (mins * 60) + secs;
+                    })()}
                   />
                 )}
                 <OutputFolderChooser path={outputFolder} onChoose={setOutputFolder} />

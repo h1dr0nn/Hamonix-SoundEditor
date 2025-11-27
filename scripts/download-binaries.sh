@@ -7,7 +7,7 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
-echo -e "${YELLOW}=== Sound Converter: Binary Download Script ===${NC}"
+echo -e "${YELLOW}=== Harmonix SE: Binary Download Script ===${NC}"
 echo -e "${BLUE}This script downloads portable Python runtime and FFmpeg binaries${NC}"
 echo ""
 
@@ -162,8 +162,40 @@ if [[ "$PLATFORM" == "Darwin" ]]; then
     download_ffmpeg_windows "x86_64-pc-windows-msvc"
     
 elif [[ "$PLATFORM" == "Linux" ]]; then
-    echo "Linux support not yet implemented"
-    exit 1
+    echo -e "${BLUE}=== Downloading for Linux ===${NC}"
+    echo ""
+    
+    # Download Python for x86_64
+    download_python "x86_64-unknown-linux-gnu" \
+        "https://github.com/astral-sh/python-build-standalone/releases/download/${PBS_TAG}/cpython-${PYTHON_VERSION_FULL}+${PBS_TAG}-x86_64-unknown-linux-gnu-install_only.tar.gz"
+    
+    # Download FFmpeg for Linux
+    echo -e "${YELLOW}Downloading FFmpeg for Linux (x86_64)...${NC}"
+    
+    FFMPEG_LINUX="ffmpeg-x86_64-unknown-linux-gnu"
+    if [ ! -f "$BINARIES_DIR/$FFMPEG_LINUX" ]; then
+        # Use static FFmpeg build from johnvansickle
+        FFMPEG_URL="https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz"
+        
+        TEMP_DIR=$(mktemp -d)
+        cd "$TEMP_DIR"
+        
+        echo "  Downloading from: $FFMPEG_URL"
+        curl -L -o ffmpeg.tar.xz "$FFMPEG_URL"
+        
+        tar -xf ffmpeg.tar.xz
+        
+        # Find and copy ffmpeg binary
+        find . -name "ffmpeg" -type f -executable -exec cp {} "$BINARIES_DIR/$FFMPEG_LINUX" \;
+        chmod +x "$BINARIES_DIR/$FFMPEG_LINUX"
+        
+        cd - > /dev/null
+        rm -rf "$TEMP_DIR"
+        
+        echo -e "${GREEN}✓ FFmpeg downloaded: $FFMPEG_LINUX${NC}"
+    else
+        echo "  FFmpeg already exists, skipping..."
+    fi
     
 elif [[ "$PLATFORM" == "MINGW"* ]] || [[ "$PLATFORM" == "MSYS"* ]]; then
     echo -e "${BLUE}=== Downloading for Windows ===${NC}"
