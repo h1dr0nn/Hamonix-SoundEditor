@@ -12,6 +12,7 @@ from ..ffmpeg_runner import (
     AudioSegment,
     AudioProcessingError,
     ExportFailureError,
+    MissingEncoderError,
     NoOutputProducedError,
     format_error_message,
     resolve_environment,
@@ -132,6 +133,7 @@ class SoundConverter:
                     converter,
                     input_path,
                     output_path,
+                    request.output_format.lower(),
                     log_callback,
                 )
             except Exception as exc:
@@ -177,15 +179,47 @@ def _run_ffmpeg_conversion(
     converter: Path,
     input_path: Path,
     output_path: Path,
+    output_format: str,
     log_callback: Optional[Callable[[str], None]],
 ) -> None:
+    """Run FFmpeg conversion with explicit format and codec specification."""
+    
+    # Map output format to FFmpeg codec and format
+    # This ensures proper encoding instead of relying on extension guessing
+    format_codec_map = {
+        "mp3": {"format": "mp3", "codec": "libmp3lame", "bitrate": "192k"},
+        "aac": {"format": "adts", "codec": "aac", "bitrate": "192k"},
+        "m4a": {"format": "ipod", "codec": "aac", "bitrate": "192k"},
+        "wav": {"format": "wav", "codec": "pcm_s16le"},
+        "flac": {"format": "flac", "codec": "flac"},
+        "ogg": {"format": "ogg", "codec": "libvorbis", "bitrate": "192k"},
+        "opus": {"format": "opus", "codec": "libopus", "bitrate": "128k"},
+        "wma": {"format": "asf", "codec": "wmav2", "bitrate": "192k"},
+    }
+    
+    format_lower = output_format.lower()
+    codec_config = format_codec_map.get(format_lower, {})
+    
+    # Build FFmpeg command with explicit codec and format
     command = [
         str(converter),
-        "-y",
-        "-i",
-        str(input_path),
-        str(output_path),
+        "-y",  # Overwrite output
+        "-i", str(input_path),
     ]
+    
+    # Add codec specification
+    if "codec" in codec_config:
+        command.extend(["-c:a", codec_config["codec"]])
+    
+    # Add bitrate for lossy formats
+    if "bitrate" in codec_config:
+        command.extend(["-b:a", codec_config["bitrate"]])
+    
+    # Add format specification
+    if "format" in codec_config:
+        command.extend(["-f", codec_config["format"]])
+    
+    command.append(str(output_path))
 
     process = subprocess.Popen(
         command,
