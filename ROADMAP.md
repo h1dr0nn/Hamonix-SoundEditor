@@ -29,12 +29,12 @@ Tauri (App Shell)
 
 ### 🧩 **Phase 1 — Foundation Setup**
 
-**Status: In Progress**
+**Status: ✅ Complete**
 
 - [x] Init repo cấu trúc 3 phần: `/frontend`, `/backend`, `/src-tauri`.
 - [x] Setup Tauri project + React + Tailwind.
 - [x] Setup Python backend tối giản (main entrypoint, convert function).
-- [ ] Tạo cơ chế IPC: React → Tauri → Python → Tauri → React. (React ↔️ Tauri ping ready; Python bridge planned.)
+- [x] Tạo cơ chế IPC: React → Tauri → Python → Tauri → React.
 - [x] File drag-and-drop UI (frontend only).
 
 ---
