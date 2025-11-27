@@ -1,5 +1,4 @@
 """Utility helpers for backend workflows."""
-
 from __future__ import annotations
 
 import os
@@ -11,9 +10,15 @@ from typing import Optional
 def _candidate_directories() -> list[Path]:
     """Return possible locations for the bundled FFmpeg binary."""
 
+    env_bin_dir = os.environ.get("SOUNDCONVERTER_BIN_DIR")
+    env_candidates = []
+    if env_bin_dir:
+        env_path = Path(env_bin_dir)
+        env_candidates.extend([env_path, env_path / "ffmpeg", env_path / "bin"])
+
     if hasattr(sys, "_MEIPASS"):
         runtime_root = Path(getattr(sys, "_MEIPASS"))
-        return [
+        return env_candidates + [
             runtime_root / "src-tauri" / "bin" / "ffmpeg",
             runtime_root / "src-tauri" / "bin",
             runtime_root / "backend" / "resources" / "bin",
@@ -23,7 +28,7 @@ def _candidate_directories() -> list[Path]:
 
     current_dir = Path(__file__).resolve().parent
     project_root = current_dir.parent.parent
-    return [
+    return env_candidates + [
         project_root / "src-tauri" / "bin" / "ffmpeg",
         project_root / "src-tauri" / "bin",
         current_dir / "resources" / "bin",
