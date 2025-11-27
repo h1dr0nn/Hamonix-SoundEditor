@@ -80,6 +80,21 @@ pub fn execute_python_conversion(
         }
     }
 
+    // Resolve bundled FFmpeg sidecar if available
+    if let Some(ffmpeg_path) = app.path_resolver().resolve_resource("binaries/ffmpeg") {
+        if ffmpeg_path.exists() {
+            if let Some(bin_dir) = ffmpeg_path.parent() {
+                let bin_dir_str = bin_dir.to_string_lossy().to_string();
+                command.env("SOUNDCONVERTER_BIN_DIR", &bin_dir_str);
+
+                log_message(
+                    "tauri",
+                    &format!("Using bundled FFmpeg from: {}", bin_dir.display()),
+                );
+            }
+        }
+    }
+
     if let Some(python_home) = resolution.python_home.as_ref() {
         command.env("PYTHONHOME", python_home);
     }
@@ -203,6 +218,10 @@ fn resolve_python(app: &tauri::AppHandle) -> Result<PythonResolution, String> {
         return Err("Unable to locate backend/main.py".to_string());
     }
 
+    // Try new binaries/ location first (for Phase 4 bundled Python)
+    let binaries_root = app.path_resolver().resolve_resource("binaries");
+
+    // Then try old bin/ locations (for backward compatibility)
     let bin_root_candidates = [
         app.path_resolver().resolve_resource("bin"),
         app.path_resolver().resolve_resource("src-tauri/bin"),
@@ -212,10 +231,23 @@ fn resolve_python(app: &tauri::AppHandle) -> Result<PythonResolution, String> {
         .into_iter()
         .flatten()
         .find(|path| path.exists());
-    let python_candidates = bin_root
-        .iter()
-        .flat_map(|bin_root| embedded_python_candidates(bin_root))
-        .collect::<Vec<_>>();
+
+    // Collect Python candidates from both binaries/ and bin/
+    let mut python_candidates = Vec::new();
+
+    // Add candidates from binaries/ directory (Phase 4 structure)
+    if let Some(ref binaries_dir) = binaries_root {
+        if binaries_dir.exists() {
+            python_candidates.extend(embedded_python_from_binaries(binaries_dir));
+        }
+    }
+
+    // Add candidates from bin/ directory (legacy structure)
+    python_candidates.extend(
+        bin_root
+            .iter()
+            .flat_map(|bin_root| embedded_python_candidates(bin_root)),
+    );
 
     let embedded_python = python_candidates.iter().find(|path| path.exists());
 
@@ -234,7 +266,7 @@ fn resolve_python(app: &tauri::AppHandle) -> Result<PythonResolution, String> {
             }
         })
         .ok_or_else(|| {
-            "Embedded Python runtime missing. Place it under src-tauri/bin/python".to_string()
+            "Embedded Python runtime missing. Run scripts/download-binaries.sh to download it.".to_string()
         })?;
 
     let python_home = embedded_python
@@ -244,10 +276,35 @@ fn resolve_python(app: &tauri::AppHandle) -> Result<PythonResolution, String> {
     Ok(PythonResolution {
         command: python_cmd,
         backend_path,
-        bin_dir: bin_root,
+        bin_dir: bin_root.or(binaries_root),
         python_home,
         uses_embedded,
     })
+}
+
+fn embedded_python_from_binaries(binaries_root: &Path) -> Vec<PathBuf> {
+    // Check for target-triple named Python directories
+    // Format: python-<target-triple>/bin/python3
+    let targets = [
+        "aarch64-apple-darwin",      // macOS ARM64
+        "x86_64-apple-darwin",       // macOS Intel
+        "x86_64-pc-windows-msvc",    // Windows x64
+        "aarch64-unknown-linux-gnu", // Linux ARM64
+        "x86_64-unknown-linux-gnu",  // Linux x64
+    ];
+
+    targets
+        .iter()
+        .flat_map(|target| {
+            let python_dir = binaries_root.join(format!("python-{}", target));
+            vec![
+                python_dir.join("bin").join("python3"),
+                python_dir.join("bin").join("python"),
+                python_dir.join("python.exe"),
+                python_dir.join("python3.exe"),
+            ]
+        })
+        .collect()
 }
 
 fn embedded_python_candidates(bin_root: &Path) -> Vec<PathBuf> {

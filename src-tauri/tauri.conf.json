@@ -12,15 +12,23 @@
   },
   "tauri": {
     "allowlist": {
-      "all": false
+      "all": false,
+      "shell": {
+        "all": false,
+        "execute": true,
+        "sidecar": true,
+        "open": false
+      }
     },
     "bundle": {
       "active": true,
       "targets": "all",
       "identifier": "com.soundconverter.app",
       "resources": [
-        "bin/**",
         "../backend/**"
+      ],
+      "externalBin": [
+        "binaries/ffmpeg"
       ]
     },
     "security": {

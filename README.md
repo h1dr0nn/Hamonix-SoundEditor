@@ -1,64 +1,175 @@
 # Sound Converter App
 
-A modern, lightweight desktop application for converting audio files, built with Python and PySide6.
+A modern desktop audio converter with an iOS/macOS-inspired UI, built with **Tauri, React, and Python**.
 
-## Features
+![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows-blue)
+![License](https://img.shields.io/badge/license-MIT-green)
 
-- **Modern Interface**: Clean, minimalist design with drag-and-drop support.
-- **Broad Format Support**: Convert between popular formats including MP3, WAV, OGG, FLAC, AAC, and WMA.
-- **Batch Processing**: Add multiple files and convert them simultaneously.
-- **Custom Output**: Easily select your destination folder.
-- **High Performance**: Background processing ensures the interface remains smooth and responsive during conversion.
+## ✨ Features
 
-## Prerequisites
+- **Beautiful Interface**: iOS/macOS-style UI with glassmorphism, blur effects, and smooth animations
+- **Drag & Drop**: Simply drag audio files into the app
+- **Multiple Formats**: Convert between MP3, WAV, OGG, FLAC, AAC, WMA, and more
+- **Batch Processing**: Convert multiple files simultaneously
+- **Real-time Progress**: See conversion progress for each file
+- **Light/Dark Mode**: Automatic theme support matching your system
+- **Audio Mastering**: Normalize and enhance audio quality with presets
+- **Silence Trimming**: Automatically remove silence from the beginning and end of audio files
 
-Before running the application, ensure you have the following installed:
+## 🏗️ Architecture
 
-- **Python 3.9** or higher.
-- **FFmpeg**: This is required for audio processing.
-  - You must install FFmpeg and add it to your system's `PATH`.
-  - _Alternative_: You can place the `ffmpeg` executable directly in the `app/resources/bin/` directory.
-
-## Installation
-
-1.  **Clone the repository** (or download the source code):
-
-    ```bash
-    git clone https://github.com/your-username/SoundConverterApp.git
-    cd SoundConverterApp
-    ```
-
-2.  **Install dependencies**:
-    ```bash
-    pip install -r requirements.txt
-    ```
-
-## Usage
-
-To start the application, simply run:
-
-```bash
-python main.py
+```
+Tauri Desktop App
+├── Frontend (React + Tailwind)    → UI Layer
+├── Tauri (Rust)                   → Bridge Layer
+└── Backend (Python + FFmpeg)      → Processing Logic
 ```
 
-Once open, you can drag and drop your audio files into the window, select your desired output format, and click convert.
+## 🚀 Quick Start
 
-## Building from Source
+### Prerequisites
 
-If you wish to create a standalone executable (e.g., `.exe` for Windows), follow these steps:
+- **Node.js** 18+ and npm
+- **Rust** (for building Tauri)
+- **Python** 3.9+
+- **FFmpeg** (will be bundled automatically in production builds)
 
-1.  Install PyInstaller:
+### Installation
 
-    ```bash
-    pip install pyinstaller
-    ```
+1. **Clone the repository**:
 
-2.  Build the application using the provided spec file:
+   ```bash
+   git clone https://github.com/your-username/SoundConverterApp.git
+   cd SoundConverterApp
+   ```
 
-    ```bash
-    pyinstaller setup.spec
-    ```
+2. **Install frontend dependencies**:
 
-3.  The executable will be generated in the `dist/` folder.
+   ```bash
+   cd frontend
+   npm install
+   ```
 
-> **Note**: For Linux/macOS builds, ensure the separator in the spec file or command matches your operating system (use `:` instead of `;` for path separators if running commands manually).
+3. **Set up Python virtual environment**:
+
+   ```bash
+   # Create virtual environment (one-time setup)
+   python3 -m venv .venv
+
+   # Activate it
+   source .venv/bin/activate  # macOS/Linux
+   # Or on Windows: .venv\Scripts\activate
+   ```
+
+4. **Install backend dependencies**:
+
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+   > **Note**: Always activate the virtual environment (`source .venv/bin/activate`) before running the backend or tests.
+
+### Development
+
+Run the app in development mode:
+
+```bash
+cd frontend
+npm run tauri dev
+```
+
+This will:
+
+- Start the Vite development server for React
+- Launch the Tauri window
+- Hot-reload on code changes
+
+### Building for Production
+
+Build the app for your platform:
+
+```bash
+cd frontend
+npm run tauri build
+```
+
+The bundled app will be in `src-tauri/target/release/bundle/`.
+
+## 🧪 Testing
+
+### Backend Tests
+
+Run Python unit tests:
+
+```bash
+cd backend
+python -m pytest
+```
+
+### Frontend Tests
+
+```bash
+cd frontend
+npm test
+```
+
+## 📁 Project Structure
+
+```
+SoundConverterApp/
+├── frontend/              # React + Tailwind UI
+│   ├── src/
+│   │   ├── components/   # Reusable UI components
+│   │   ├── pages/        # Main app pages
+│   │   ├── hooks/        # Custom React hooks
+│   │   └── utils/        # Frontend utilities
+│   └── package.json
+├── backend/              # Python audio processing
+│   ├── app/
+│   │   ├── handler/     # Conversion, mastering, trimming
+│   │   └── resources/   # FFmpeg binaries
+│   ├── main.py          # Backend entrypoint
+│   └── utils.py
+├── src-tauri/           # Rust/Tauri bridge
+│   ├── src/
+│   │   ├── commands/   # Tauri commands (IPC)
+│   │   └── core/       # Core Tauri logic
+│   └── Cargo.toml
+└── tests/              # Backend unit tests
+```
+
+## 🎨 Design Philosophy
+
+The UI follows Apple's design principles:
+
+- **Glassmorphism**: Blur (24-40px) with semi-transparent layers
+- **Rounded Corners**: 12-24px radius for modern feel
+- **Smooth Animations**: ≤250ms transitions
+- **Clean Typography**: Inter/SF Pro fonts
+- **Minimal Shadows**: Soft, subtle depth
+
+## 📖 Documentation
+
+- [**ROADMAP.md**](./ROADMAP.md) - Project milestones and development phases
+- [**AGENTS.md**](./AGENTS.md) - Architecture rules and guidelines for contributors
+
+## 🛠️ Technology Stack
+
+| Layer    | Technology                   |
+| -------- | ---------------------------- |
+| Frontend | React 18, Tailwind CSS, Vite |
+| Desktop  | Tauri 1.5                    |
+| Backend  | Python 3.9+, FFmpeg          |
+| Build    | Rust, Node.js                |
+
+## 🤝 Contributing
+
+Please read [AGENTS.md](./AGENTS.md) for architecture guidelines before contributing.
+
+## 📝 License
+
+MIT License - feel free to use this project for learning or personal use.
+
+---
+
+**Status**: Phase 3 Complete ✅ | Packaging & CI/CD in progress

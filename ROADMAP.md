@@ -70,12 +70,12 @@ Tauri (App Shell)
 
 ### 📦 **Phase 4 — Packaging**
 
-**Status: Pending**
+**Status: ✅ Complete**
 
-- [ ] Embed Python runtime vào `/src-tauri/bin/python`.
-- [ ] Embed FFmpeg vào `/src-tauri/bin/ffmpeg`.
-- [ ] Tauri: platform-specific bundling.
-- [ ] Test app chạy độc lập không cần cài Python.
+- [x] Embed Python runtime vào `/src-tauri/bin/python`.
+- [x] Embed FFmpeg vào `/src-tauri/bin/ffmpeg`.
+- [x] Tauri: platform-specific bundling.
+- [x] Test app chạy độc lập không cần cài Python.
 
 ---
 
