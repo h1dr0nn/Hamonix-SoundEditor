@@ -1,4 +1,4 @@
-# 🚀 Sound Converter – Project Roadmap
+# 🚀 Harmonix SE – Project Roadmap
 
 Modern desktop sound converter using **Tauri + React + Python (FFmpeg)** with an **iOS/macOS-style UI**.
 
@@ -81,7 +81,7 @@ Tauri (App Shell)
 
 ### 🛠 **Phase 5 — CI/CD**
 
-**Status: Pending**
+**Status: 🚧 In Progress**
 
 - [ ] GitHub Actions:
   - [ ] Setup Node + Rust + Python.

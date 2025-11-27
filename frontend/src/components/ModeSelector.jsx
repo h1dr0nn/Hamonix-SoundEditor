@@ -1,27 +1,32 @@
 import React from 'react';
-import { FiRefreshCw, FiMusic, FiScissors } from 'react-icons/fi';
+import { FiRefreshCw, FiZap, FiScissors, FiSliders } from 'react-icons/fi';
 import { cn } from '../utils/cn';
 
 const MODE_CONFIG = {
-  convert: {
+  format: {
     icon: FiRefreshCw,
-    label: 'Convert',
-    description: 'Change format'
+    label: 'Format',
+    description: 'Convert file type'
   },
-  master: {
-    icon: FiMusic,
-    label: 'Master',
-    description: 'Enhance quality'
+  enhance: {
+    icon: FiZap,
+    label: 'Enhance',
+    description: 'Improve quality'
   },
-  trim: {
+  clean: {
     icon: FiScissors,
-    label: 'Trim',
-    description: 'Remove silence'
+    label: 'Clean',
+    description: 'Trim silence'
+  },
+  modify: {
+    icon: FiSliders,
+    label: 'Modify',
+    description: 'Speed, pitch & cut'
   }
 };
 
 export function ModeSelector({ selected, onChange }) {
-  const modes = ['convert', 'master', 'trim'];
+  const modes = ['format', 'enhance', 'clean', 'modify'];
 
   return (
     <div className="space-y-2">

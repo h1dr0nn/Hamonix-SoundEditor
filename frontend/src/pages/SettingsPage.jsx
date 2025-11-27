@@ -367,8 +367,8 @@ function AboutTab() {
   return (
     <div className="space-y-6">
       <div className="space-y-2">
-        <h3 className="text-lg font-semibold text-slate-900 dark:text-white">Sound Converter</h3>
-        <p className="text-sm text-slate-600 dark:text-slate-300">Version 0.1.0</p>
+        <h3 className="text-lg font-semibold text-slate-900 dark:text-white">Harmonix SE</h3>
+        <p className="text-sm text-slate-600 dark:text-slate-300">Version 1.0.0</p>
       </div>
 
       <div className="space-y-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/5">

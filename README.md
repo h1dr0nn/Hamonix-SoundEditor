@@ -1,4 +1,4 @@
-# Sound Converter App
+# Harmonix SE
 
 A modern desktop audio converter with an iOS/macOS-inspired UI, built with **Tauri, React, and Python**.
 
@@ -94,6 +94,24 @@ npm run tauri build
 ```
 
 The bundled app will be in `src-tauri/target/release/bundle/`.
+
+### Automated Releases (CI/CD)
+
+The project includes automated multi-platform builds via GitHub Actions:
+
+```bash
+# Create and push a version tag to trigger release build
+git tag v1.0.0
+git push origin v1.0.0
+```
+
+This will automatically build for:
+
+- macOS (Apple Silicon + Intel)
+- Windows (x64)
+- Linux (x64)
+
+See [`.github/RELEASE.md`](./.github/RELEASE.md) for detailed release instructions.
 
 ## 🧪 Testing
 

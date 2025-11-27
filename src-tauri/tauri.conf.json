@@ -1,14 +1,15 @@
 {
   "$schema": "https://schema.tauri.app/config/1",
   "package": {
-    "productName": "Sound Converter",
-    "version": "0.1.0"
+    "productName": "Harmonix SE",
+    "version": "1.0.0"
   },
   "build": {
     "beforeDevCommand": "cd frontend && npm run dev",
     "beforeBuildCommand": "cd frontend && npm run build",
     "devPath": "http://localhost:5173",
-    "distDir": "../frontend/dist"
+    "distDir": "../frontend/dist",
+    "withGlobalTauri": false
   },
   "tauri": {
     "allowlist": {
@@ -35,7 +36,7 @@
     "bundle": {
       "active": true,
       "targets": "all",
-      "identifier": "com.soundconverter.app",
+      "identifier": "com.harmonixse.app",
       "resources": [
         "../backend/**"
       ],
@@ -48,7 +49,7 @@
     },
     "windows": [
       {
-        "title": "Sound Converter",
+        "title": "Harmonix SE",
         "width": 1200,
         "height": 800,
         "resizable": true,

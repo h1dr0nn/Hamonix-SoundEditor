@@ -14,6 +14,7 @@ from pathlib import Path
 
 from app.handler.converter import ConversionProgress, ConversionRequest, SoundConverter
 from app.handler.mastering import MasteringEngine, MasteringParameters, MasteringRequest
+from app.handler.modifier import ModificationRequest, process as process_modification
 from app.handler.trimmer import SilenceTrimmer, TrimRequest
 from utils import ensure_ffmpeg, log_message
 
@@ -72,6 +73,8 @@ def main() -> None:
             result = handle_mastering(data)
         elif operation == "trim":
             result = handle_trimming(data)
+        elif operation == "modify":
+            result = handle_modification(data)
         else:
             print(json.dumps({"status": "error", "message": f"Unknown operation: {operation}"}))
             sys.exit(1)
@@ -188,13 +191,44 @@ def handle_trimming(data: dict) -> dict:
         overwrite_existing=overwrite
     )
 
-    result = SilenceTrimmer.process(request)
-    
     return {
         "status": "success" if result.success else "error",
         "message": result.message,
         "outputs": [str(p) for p in result.outputs]
     }
+
+
+def handle_modification(data: dict) -> dict:
+    """Handle audio modification request."""
+    input_paths = [Path(p) for p in data.get("input_paths", [])]
+    output_directory = Path(data.get("output_directory", "."))
+    speed = float(data.get("speed", 1.0))
+    pitch = int(data.get("pitch", 0))
+    cut_start = float(data.get("cut_start", 0.0))
+    cut_end = float(data.get("cut_end", 100.0))
+
+    request = ModificationRequest(
+        input_paths=input_paths,
+        output_directory=output_directory,
+        speed=speed,
+        pitch=pitch,
+        cut_start=cut_start,
+        cut_end=cut_end
+    )
+
+    try:
+        outputs = process_modification(request)
+        return {
+            "status": "success",
+            "message": f"Modified {len(outputs)} files",
+            "outputs": [str(p) for p in outputs]
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": str(e),
+            "outputs": []
+        }
 
 
 if __name__ == "__main__":
