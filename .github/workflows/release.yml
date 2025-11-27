@@ -143,12 +143,20 @@ jobs:
       - name: Package artifacts
         id: package
         run: |
-          cd src-tauri/target/${{ matrix.target }}/release/bundle
+          BUNDLE_DIR="src-tauri/target/${{ matrix.target }}/release/bundle"
+
+          if [ ! -d "$BUNDLE_DIR" ]; then
+            echo "Error: Bundle directory not found at $BUNDLE_DIR"
+            ls -la src-tauri/target/${{ matrix.target }}/release/ || true
+            exit 1
+          fi
+
+          cd "$BUNDLE_DIR"
 
           # Find and package .app
           if [ -d "macos" ]; then
             cd macos
-            APP_NAME=$(ls -d *.app | head -n 1)
+            APP_NAME=$(ls -d *.app 2>/dev/null | head -n 1)
             if [ -n "$APP_NAME" ]; then
               tar -czf "Harmonix-SE-${{ github.ref_name }}-macOS-${{ matrix.arch }}.app.tar.gz" "$APP_NAME"
               echo "app_archive=Harmonix-SE-${{ github.ref_name }}-macOS-${{ matrix.arch }}.app.tar.gz" >> $GITHUB_OUTPUT
@@ -251,7 +259,7 @@ jobs:
 
       - name: Verify FFmpeg
         run: |
-          $FFMPEG_BIN = "src-tauri/binaries/ffmpeg-x86_64-pc-windows-msvc.exe"
+          $FFMPEG_BIN = 'src-tauri/binaries/ffmpeg-x86_64-pc-windows-msvc.exe'
           if (Test-Path $FFMPEG_BIN) {
             Write-Host "✓ FFmpeg found at $FFMPEG_BIN"
             Get-Item $FFMPEG_BIN | Select-Object Name,Length
@@ -394,14 +402,33 @@ jobs:
       - name: Download binaries (Python + FFmpeg)
         run: |
           chmod +x scripts/download-binaries.sh
-          # Note: download-binaries.sh needs Linux support added
-          # For now, use system Python and install FFmpeg
-          sudo apt-get install -y ffmpeg
+          ./scripts/download-binaries.sh
+        shell: bash
 
       - name: Install backend dependencies
         run: |
-          python3 -m pip install --upgrade pip
-          python3 -m pip install -r requirements.txt
+          PYTHON_BIN="./src-tauri/binaries/python-x86_64-unknown-linux-gnu/bin/python3"
+          if [ -f "$PYTHON_BIN" ]; then
+            echo "Installing backend dependencies with bundled Python..."
+            $PYTHON_BIN -m pip install --upgrade pip
+            $PYTHON_BIN -m pip install -r requirements.txt
+          else
+            echo "Error: Bundled Python not found at $PYTHON_BIN"
+            exit 1
+          fi
+        shell: bash
+
+      - name: Verify FFmpeg
+        run: |
+          FFMPEG_BIN="./src-tauri/binaries/ffmpeg-x86_64-unknown-linux-gnu"
+          if [ -f "$FFMPEG_BIN" ]; then
+            echo "✓ FFmpeg found at $FFMPEG_BIN"
+            ls -lh "$FFMPEG_BIN"
+          else
+            echo "Error: FFmpeg not found at $FFMPEG_BIN"
+            exit 1
+          fi
+        shell: bash
 
       - name: Build Tauri app
         run: |
