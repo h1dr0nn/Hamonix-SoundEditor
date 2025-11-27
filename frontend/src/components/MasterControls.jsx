@@ -60,7 +60,7 @@ export function MasterControls({ preset, onPresetChange, parameters, onParameter
                 'flex items-start gap-3 rounded-xl border-2 p-3 text-left transition duration-smooth',
                 preset === key
                   ? 'border-accent bg-accent/10 dark:bg-accent/20'
-                  : 'border-white/40 bg-white/30 hover:border-white/60 hover:bg-white/50 dark:border-white/10 dark:bg-white/5 dark:hover:border-white/20'
+                  : 'border-slate-200 bg-slate-50 hover:border-slate-300 hover:bg-slate-100 dark:border-white/10 dark:bg-white/5 dark:hover:border-white/20'
               )}
             >
               <div className="flex-1">

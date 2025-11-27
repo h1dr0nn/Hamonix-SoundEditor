@@ -29,7 +29,7 @@ export function TrimControls({ threshold, onThresholdChange, minSilence, onMinSi
           step="1"
           value={threshold}
           onChange={(e) => onThresholdChange(parseFloat(e.target.value))}
-          className="h-2 w-full appearance-none rounded-full bg-white/50 dark:bg-white/10"
+          className="h-2 w-full appearance-none rounded-full bg-slate-200 dark:bg-white/10"
         />
         <p className="text-xs text-slate-500 dark:text-slate-400">
           Audio below this level is considered silence. Lower = more aggressive trimming.
@@ -53,7 +53,7 @@ export function TrimControls({ threshold, onThresholdChange, minSilence, onMinSi
           step="50"
           value={minSilence}
           onChange={(e) => onMinSilenceChange(parseInt(e.target.value))}
-          className="h-2 w-full appearance-none rounded-full bg-white/50 dark:bg-white/10"
+          className="h-2 w-full appearance-none rounded-full bg-slate-200 dark:bg-white/10"
         />
         <p className="text-xs text-slate-500 dark:text-slate-400">
           Only silence longer than this duration will be trimmed.
@@ -77,7 +77,7 @@ export function TrimControls({ threshold, onThresholdChange, minSilence, onMinSi
           step="50"
           value={padding}
           onChange={(e) => onPaddingChange(parseInt(e.target.value))}
-          className="h-2 w-full appearance-none rounded-full bg-white/50 dark:bg-white/10"
+          className="h-2 w-full appearance-none rounded-full bg-slate-200 dark:bg-white/10"
         />
         <p className="text-xs text-slate-500 dark:text-slate-400">
           Keep this amount of silence at the beginning and end for natural fades.
