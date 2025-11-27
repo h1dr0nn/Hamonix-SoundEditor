@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import os
+import subprocess
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable, Sequence, Tuple
+from typing import Callable, Iterable, Optional, Sequence, Tuple
 
 from ..ffmpeg_runner import (
     AudioSegment,
@@ -26,6 +28,7 @@ class ConversionRequest:
     output_directory: Path
     output_format: str
     overwrite_existing: bool = True
+    ffmpeg_path: Optional[Path] = None
 
     def outputs(self) -> Iterable[Tuple[Path, Path]]:
         """Yield tuples of ``(input_path, output_path)`` for the batch."""
@@ -68,14 +71,29 @@ class SoundConverter:
         return SoundConverter.SUPPORTED_FORMATS
 
     @staticmethod
-    def convert(request: ConversionRequest) -> ConversionResult:
-        """Run the conversion and return a structured result."""
+    def convert(
+        request: ConversionRequest,
+        progress_callback: Optional[Callable[["ConversionProgress"], None]] = None,
+        log_callback: Optional[Callable[[str], None]] = None,
+    ) -> ConversionResult:
+        """Run the conversion and return a structured result.
+
+        Parameters
+        ----------
+        request:
+            Conversion request payload.
+        progress_callback:
+            Optional callback invoked with :class:`ConversionProgress` updates.
+        log_callback:
+            Optional callback invoked with FFmpeg stderr lines.
+        """
         try:
             validate_input_paths(list(request.input_paths))
             validate_pydub_available()
-            output_format = request.output_format.lower()
             resolve_environment()
-            outputs = SoundConverter._export_batch(request, output_format)
+            outputs = SoundConverter._export_batch(
+                request, progress_callback, log_callback
+            )
             if not outputs:
                 raise NoOutputProducedError()
         except AudioProcessingError as error:
@@ -86,19 +104,51 @@ class SoundConverter:
         return ConversionResult(True, message, outputs)
 
     @staticmethod
-    def _export_batch(request: ConversionRequest, output_format: str) -> Tuple[Path, ...]:
-        assert AudioSegment is not None
-
+    def _export_batch(
+        request: ConversionRequest,
+        progress_callback: Optional[Callable[["ConversionProgress"], None]],
+        log_callback: Optional[Callable[[str], None]],
+    ) -> Tuple[Path, ...]:
         converted: list[Path] = []
         request.output_directory.mkdir(parents=True, exist_ok=True)
 
-        for input_path, output_path in request.outputs():
+        for index, (input_path, output_path) in enumerate(
+            request.outputs(), start=1
+        ):
+            if progress_callback:
+                progress_callback(
+                    ConversionProgress(
+                        status="processing",
+                        index=index,
+                        total=len(request.input_paths),
+                        source=input_path,
+                        destination=output_path,
+                    )
+                )
+
             try:
-                audio = AudioSegment.from_file(input_path)
-                audio.export(output_path, format=output_format)
+                converter = _resolve_converter_path(request)
+                _run_ffmpeg_conversion(
+                    converter,
+                    input_path,
+                    output_path,
+                    log_callback,
+                )
             except Exception as exc:
                 raise ExportFailureError(input_path, exc, len(request.input_paths))
+
             converted.append(output_path)
+
+            if progress_callback:
+                progress_callback(
+                    ConversionProgress(
+                        status="completed",
+                        index=index,
+                        total=len(request.input_paths),
+                        source=input_path,
+                        destination=output_path,
+                    )
+                )
 
         return tuple(converted)
 
@@ -110,3 +160,77 @@ class SoundConverter:
             request.output_directory if request.output_directory else outputs[0].parent
         )
         return f"Converted {len(outputs)} files into {destination_text}"
+
+
+@dataclass(frozen=True)
+class ConversionProgress:
+    """Progress payload for individual files."""
+
+    status: str
+    index: int
+    total: int
+    source: Path
+    destination: Path
+
+
+def _run_ffmpeg_conversion(
+    converter: Path,
+    input_path: Path,
+    output_path: Path,
+    log_callback: Optional[Callable[[str], None]],
+) -> None:
+    command = [
+        str(converter),
+        "-y",
+        "-i",
+        str(input_path),
+        str(output_path),
+    ]
+
+    process = subprocess.Popen(
+        command,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+
+    assert process.stderr is not None
+    for line in process.stderr:
+        if log_callback:
+            log_callback(line.rstrip())
+
+    return_code = process.wait()
+    if return_code != 0:
+        raise RuntimeError(f"ffmpeg exited with code {return_code}")
+
+
+def _resolve_converter_path(request: ConversionRequest) -> Path:
+    """Resolve the ffmpeg binary to use for conversion."""
+
+    candidates = []
+
+    if request.ffmpeg_path:
+        candidates.append(request.ffmpeg_path)
+
+    env_candidates = [
+        os.environ.get("FFMPEG_BINARY"),
+        os.environ.get("FFMPEG_BIN"),
+    ]
+    candidates.extend(Path(path) for path in env_candidates if path)
+
+    if AudioSegment is not None:
+        converter_attr = getattr(AudioSegment, "converter", None)
+        if converter_attr:
+            candidates.append(Path(converter_attr))
+
+    from shutil import which
+
+    default_path = which("ffmpeg")
+    if default_path:
+        candidates.append(Path(default_path))
+
+    for candidate in candidates:
+        if candidate and candidate.exists():
+            return candidate
+
+    raise MissingEncoderError()
