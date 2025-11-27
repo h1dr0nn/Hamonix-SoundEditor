@@ -5,10 +5,40 @@ from __future__ import annotations
 import os
 import sys
 from pathlib import Path
+from typing import Optional
 
 
-def ensure_ffmpeg() -> None:
-    """Ensure the bundled FFmpeg binaries are discoverable at runtime."""
+def _candidate_directories() -> list[Path]:
+    """Return possible locations for the bundled FFmpeg binary."""
+
+    if hasattr(sys, "_MEIPASS"):
+        runtime_root = Path(getattr(sys, "_MEIPASS"))
+        return [
+            runtime_root / "src-tauri" / "bin" / "ffmpeg",
+            runtime_root / "src-tauri" / "bin",
+            runtime_root / "backend" / "resources" / "bin",
+            runtime_root / "resources" / "bin",
+            runtime_root / "bin",
+        ]
+
+    current_dir = Path(__file__).resolve().parent
+    project_root = current_dir.parent.parent
+    return [
+        project_root / "src-tauri" / "bin" / "ffmpeg",
+        project_root / "src-tauri" / "bin",
+        current_dir / "resources" / "bin",
+        current_dir.parent / "resources" / "bin",
+    ]
+
+
+def ensure_ffmpeg() -> Optional[Path]:
+    """Ensure the bundled FFmpeg binaries are discoverable at runtime.
+
+    Returns
+    -------
+    Optional[Path]
+        The resolved FFmpeg binary path if found.
+    """
 
     try:
         from pydub import AudioSegment  # type: ignore
@@ -17,29 +47,11 @@ def ensure_ffmpeg() -> None:
         # error message if the dependency is missing.
         return
 
-    # Determine the runtime root.
-    # If frozen with PyInstaller, _MEIPASS is the temp dir.
-    # If running from source, we look in backend/resources/bin
-    
-    if hasattr(sys, "_MEIPASS"):
-        runtime_root = Path(getattr(sys, "_MEIPASS"))
-        candidates_dirs = [
-            runtime_root / "backend" / "resources" / "bin",
-            runtime_root / "resources" / "bin",
-            runtime_root / "bin",
-        ]
-    else:
-        # Running from source: backend/utils.py -> backend/ -> backend/resources/bin
-        current_dir = Path(__file__).resolve().parent
-        candidates_dirs = [
-            current_dir / "resources" / "bin",
-            current_dir.parent / "resources" / "bin",
-        ]
-
-    binary_dir = next((d for d in candidates_dirs if d.is_dir()), None)
+    candidate_dirs = _candidate_directories()
+    binary_dir = next((d for d in candidate_dirs if d.is_dir()), None)
 
     if not binary_dir:
-        return
+        return None
 
     candidates = [
         binary_dir / "ffmpeg.exe",
@@ -48,7 +60,7 @@ def ensure_ffmpeg() -> None:
     ]
     binary_path = next((path for path in candidates if path.is_file()), None)
     if binary_path is None:
-        return
+        return None
 
     path_entries = os.environ.get("PATH", "").split(os.pathsep) if os.environ.get("PATH") else []
     binary_dir_str = str(binary_dir)
@@ -57,3 +69,13 @@ def ensure_ffmpeg() -> None:
         os.environ["PATH"] = os.pathsep.join(path_entries) if path_entries else binary_dir_str
 
     AudioSegment.converter = str(binary_path)
+    return binary_path
+
+
+def log_message(scope: str, message: str) -> None:
+    """Emit structured log messages to stderr."""
+
+    from datetime import datetime
+
+    timestamp = f"{datetime.utcnow().isoformat()}Z"
+    print(f"[{scope}] [{timestamp}] {message}", file=sys.stderr, flush=True)

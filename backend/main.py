@@ -12,17 +12,18 @@ import sys
 import traceback
 from pathlib import Path
 
-from app.handler.converter import SoundConverter, ConversionRequest
-from app.handler.mastering import MasteringEngine, MasteringRequest, MasteringParameters
+from app.handler.converter import ConversionProgress, ConversionRequest, SoundConverter
+from app.handler.mastering import MasteringEngine, MasteringParameters, MasteringRequest
 from app.handler.trimmer import SilenceTrimmer, TrimRequest
-from utils import ensure_ffmpeg
+from utils import ensure_ffmpeg, log_message
 
 
 def main() -> None:
     """Read JSON from stdin, run conversion, and print result."""
-    
+
     # 1. Setup environment
-    ensure_ffmpeg()
+    ffmpeg_path = ensure_ffmpeg()
+    log_message("python", f"Backend initialized (ffmpeg={ffmpeg_path})")
 
     # 2. Read input
     try:
@@ -45,7 +46,10 @@ def main() -> None:
 
     try:
         if operation == "convert":
-            result = handle_conversion(data)
+            result = handle_conversion(data, ffmpeg_path)
+            if result is None or result.get("status") != "success":
+                sys.exit(1)
+            return
         elif operation == "master":
             result = handle_mastering(data)
         elif operation == "trim":
@@ -54,9 +58,11 @@ def main() -> None:
             print(json.dumps({"status": "error", "message": f"Unknown operation: {operation}"}))
             sys.exit(1)
 
-        print(json.dumps(result))
-        
-        if result["status"] != "success":
+        if result is not None:
+            print(json.dumps(result))
+            sys.stdout.flush()
+
+        if result is None or result.get("status") != "success":
             sys.exit(1)
 
     except Exception as e:
@@ -64,26 +70,51 @@ def main() -> None:
         sys.exit(1)
 
 
-def handle_conversion(data: dict) -> dict:
+def handle_conversion(data: dict, ffmpeg_path: Path | None) -> dict | None:
     """Handle audio conversion request."""
-    input_paths = [Path(p) for p in data.get("input_paths", [])]
-    output_directory = Path(data.get("output_directory", "."))
-    output_format = data.get("output_format", "mp3")
+    input_paths = [Path(p) for p in data.get("files", data.get("input_paths", []))]
+    output_directory = Path(data.get("output") or data.get("output_directory") or ".")
+    output_format = data.get("format") or data.get("output_format", "mp3")
     overwrite = data.get("overwrite_existing", True)
+
+    log_message(
+        "python",
+        f"Received conversion request (files={len(input_paths)}, format={output_format}, output={output_directory})",
+    )
 
     request = ConversionRequest(
         input_paths=input_paths,
         output_directory=output_directory,
         output_format=output_format,
-        overwrite_existing=overwrite
+        overwrite_existing=overwrite,
+        ffmpeg_path=ffmpeg_path,
     )
 
-    result = SoundConverter.convert(request)
-    
+    try:
+        result = SoundConverter.convert(
+            request,
+            progress_callback=lambda progress: emit_progress(progress),
+            log_callback=lambda line: log_message("ffmpeg", line),
+        )
+    except Exception as exc:
+        log_message("python", f"Fatal error during conversion: {exc}")
+        emit_progress({"event": "complete", "status": "fatal", "message": str(exc)})
+        return None
+
+    status = "success" if result.success else "error"
+    emit_progress(
+        {
+            "event": "complete",
+            "status": status,
+            "message": result.message,
+            "outputs": [str(p) for p in result.outputs],
+        }
+    )
+
     return {
-        "status": "success" if result.success else "error",
+        "status": status,
         "message": result.message,
-        "outputs": [str(p) for p in result.outputs]
+        "outputs": [str(p) for p in result.outputs],
     }
 
 
@@ -149,3 +180,20 @@ def handle_trimming(data: dict) -> dict:
 
 if __name__ == "__main__":
     main()
+
+
+def emit_progress(progress: ConversionProgress | dict) -> None:
+    if isinstance(progress, ConversionProgress):
+        payload = {
+            "event": "progress",
+            "status": progress.status,
+            "index": progress.index,
+            "total": progress.total,
+            "file": str(progress.source),
+            "destination": str(progress.destination),
+        }
+    else:
+        payload = progress
+
+    print(json.dumps(payload))
+    sys.stdout.flush()

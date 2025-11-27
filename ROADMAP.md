@@ -58,13 +58,13 @@ Tauri (App Shell)
 
 ### 🔧 **Phase 3 — Backend Integration**
 
-**Status: Pending**
+**Status: ✅ Complete**
 
-- [ ] Tạo command Tauri gọi Python.
-- [ ] Python: load FFmpeg path từ bundle.
-- [ ] Xử lý nhiều file (batch mode).
-- [ ] Streaming progress về frontend.
-- [ ] Log pipeline (Tauri, Python, FFmpeg).
+- [x] Tạo command Tauri gọi Python.
+- [x] Python: load FFmpeg path từ bundle.
+- [x] Xử lý nhiều file (batch mode).
+- [x] Streaming progress về frontend.
+- [x] Log pipeline (Tauri, Python, FFmpeg).
 
 ---
 
