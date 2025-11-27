@@ -7,17 +7,27 @@
   color: #0f172a;
   background: linear-gradient(180deg, #fdfdff 0%, #f2f2f7 100%);
   min-height: 100vh;
+  transition: background-color 180ms ease, color 180ms ease;
 }
 
 body {
   margin: 0;
+  min-height: 100vh;
   background: radial-gradient(circle at 20% 20%, rgba(0, 122, 255, 0.08), transparent 25%),
     radial-gradient(circle at 80% 0%, rgba(0, 0, 0, 0.06), transparent 30%),
     #f2f2f7;
   color: #111827;
+  transition: background-color 180ms ease, color 180ms ease;
 }
 
-.backdrop-blur {
+.dark body {
+  background: radial-gradient(circle at 15% 20%, rgba(255, 255, 255, 0.05), transparent 28%),
+    radial-gradient(circle at 90% 10%, rgba(0, 0, 0, 0.35), transparent 35%),
+    #1c1c1e;
+  color: #e5e7eb;
+}
+
+.glass-surface {
   backdrop-filter: blur(32px);
   -webkit-backdrop-filter: blur(32px);
 }
@@ -25,4 +35,25 @@ body {
 ::selection {
   background: rgba(0, 122, 255, 0.2);
   color: #0f172a;
+}
+
+.dark ::selection {
+  background: rgba(0, 122, 255, 0.35);
+  color: #f8fafc;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.12);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
 }
