@@ -25,8 +25,8 @@
     ]
   },
   "build": {
-    "beforeDevCommand": "cd frontend && npm run dev",
-    "beforeBuildCommand": "cd frontend && npm run build",
+    "beforeDevCommand": "npm run dev",
+    "beforeBuildCommand": "npm run build",
     "frontendDist": "../frontend/dist",
     "devUrl": "http://localhost:5173"
   },
