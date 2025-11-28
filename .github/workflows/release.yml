@@ -159,14 +159,30 @@ jobs:
         shell: bash
         run: |
           VERSION=${GITHUB_REF_NAME#v}
-          BUNDLE_DIR=$(find src-tauri/target -type d -path "*/bundle/dmg" | head -n 1)
-          DMG=$(find "$BUNDLE_DIR" -type f -name "*.dmg" | head -n 1)
+          BUNDLE_DIR=$(find src-tauri/target -type d -path "*/bundle/dmg" -print -quit)
+
+          if [ -z "$BUNDLE_DIR" ]; then
+            echo "❌ No DMG bundle directory found"
+            find src-tauri/target -type d -name "bundle" || true
+            exit 1
+          fi
+
+          DMG=$(find "$BUNDLE_DIR" -type f -name "*.dmg" -print -quit)
+
+          if [ -z "$DMG" ]; then
+            echo "❌ No DMG file found in $BUNDLE_DIR"
+            ls -lh "$BUNDLE_DIR" || true
+            exit 1
+          fi
 
           if [[ "${{ matrix.target }}" == "aarch64-apple-darwin" ]]; then
-            mv "$DMG" "$BUNDLE_DIR/harmonixse_macos_${VERSION}_arm64.dmg"
+            NEW_NAME="$BUNDLE_DIR/harmonixse_macos_${VERSION}_arm64.dmg"
           else
-            mv "$DMG" "$BUNDLE_DIR/harmonixse_macos_${VERSION}_x86_64.dmg"
+            NEW_NAME="$BUNDLE_DIR/harmonixse_macos_${VERSION}_x86_64.dmg"
           fi
+
+          mv "$DMG" "$NEW_NAME"
+          echo "✅ Renamed DMG: $NEW_NAME"
 
       # ---------------------------
       # Linux rename
@@ -176,17 +192,32 @@ jobs:
         shell: bash
         run: |
           VERSION=${GITHUB_REF_NAME#v}
-          APPDIR=$(find src-tauri/target -type d -path "*/bundle/appimage" | head -n 1)
-          DEBDIR=$(find src-tauri/target -type d -path "*/bundle/deb" | head -n 1)
+          APPDIR=$(find src-tauri/target -type d -path "*/bundle/appimage" -print -quit)
+          DEBDIR=$(find src-tauri/target -type d -path "*/bundle/deb" -print -quit)
 
-          APP=$(find "$APPDIR" -type f -name "*.AppImage" | head -n 1)
-          DEB=$(find "$DEBDIR" -type f -name "*.deb" | head -n 1)
+          echo "AppImage dir: $APPDIR"
+          echo "DEB dir: $DEBDIR"
 
-          [ -n "$APP" ] && mv "$APP" "$APPDIR/harmonixse_linux_${VERSION}_x86_64.AppImage"
-          [ -n "$DEB" ] && mv "$DEB" "$DEBDIR/harmonixse_linux_${VERSION}_x86_64.deb"
+          APP=$(find "$APPDIR" -type f -name "*.AppImage" -print -quit 2>/dev/null)
+          DEB=$(find "$DEBDIR" -type f -name "*.deb" -print -quit 2>/dev/null)
+
+          if [ -n "$APP" ]; then
+            mv "$APP" "$APPDIR/harmonixse_linux_${VERSION}_x86_64.AppImage"
+            echo "✅ Renamed AppImage: $APPDIR/harmonixse_linux_${VERSION}_x86_64.AppImage"
+          else
+            echo "⚠️ No AppImage found in $APPDIR"
+            ls -lh "$APPDIR" 2>/dev/null || echo "AppImage directory does not exist"
+          fi
+
+          if [ -n "$DEB" ]; then
+            mv "$DEB" "$DEBDIR/harmonixse_linux_${VERSION}_x86_64.deb"
+            echo "✅ Renamed DEB: $DEBDIR/harmonixse_linux_${VERSION}_x86_64.deb"
+          else
+            echo "⚠️ No DEB found in $DEBDIR"
+          fi
 
       # ---------------------------
-      # Windows rename
+      # Windows rename - FIXED
       # ---------------------------
       - name: Rename Windows outputs
         if: matrix.platform == 'windows-latest'
@@ -196,28 +227,63 @@ jobs:
 
           $bundle = Get-ChildItem -Recurse -Directory -Path "src-tauri\target" | Where-Object { $_.Name -eq "bundle" } | Select-Object -First 1
 
-          # MSI
-          $msi = Get-ChildItem "$($bundle.FullName)\msi" -Filter "*.msi" -ErrorAction SilentlyContinue | Select-Object -First 1
-          if ($msi) {
-            Rename-Item $msi.FullName "$($bundle.FullName)\harmonixse_windows_${VERSION}_x86_64.msi" -Force
+          if ($null -eq $bundle) {
+            Write-Host "❌ Bundle directory not found"
+            exit 1
           }
 
-          # Installer EXE
-          $installer = Get-ChildItem "$($bundle.FullName)\nsis" -Filter "*_setup.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
-          if ($installer) {
-            Rename-Item $installer.FullName "$($bundle.FullName)\harmonixse_windows_${VERSION}_x86_64.exe" -Force
+          Write-Host "Bundle dir: $($bundle.FullName)"
+
+          # MSI - rename INSIDE msi\ folder
+          $msiDir = Join-Path $bundle.FullName "msi"
+          if (Test-Path $msiDir) {
+            $msi = Get-ChildItem $msiDir -Filter "*.msi" -ErrorAction SilentlyContinue | Select-Object -First 1
+            if ($msi) {
+              $newName = Join-Path $msiDir "harmonixse_windows_${VERSION}_x86_64.msi"
+              Rename-Item $msi.FullName $newName -Force
+              Write-Host "✅ Renamed MSI: $newName"
+            } else {
+              Write-Host "⚠️ No MSI found in $msiDir"
+            }
+          } else {
+            Write-Host "⚠️ MSI directory not found: $msiDir"
           }
 
-          # Portable EXE
-          $portable = Get-ChildItem "$($bundle.FullName)\nsis" -Filter "*_portable.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
-          if ($portable) {
-            Rename-Item $portable.FullName "$($bundle.FullName)\harmonixse_windows_${VERSION}_x86_64_portable.exe" -Force
+          # NSIS - rename INSIDE nsis\ folder
+          $nsisDir = Join-Path $bundle.FullName "nsis"
+          if (Test-Path $nsisDir) {
+            # Installer EXE
+            $installer = Get-ChildItem $nsisDir -Filter "*_setup.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
+            if ($installer) {
+              $newName = Join-Path $nsisDir "harmonixse_windows_${VERSION}_x86_64.exe"
+              Rename-Item $installer.FullName $newName -Force
+              Write-Host "✅ Renamed installer: $newName"
+            }
+            
+            # Portable EXE
+            $portable = Get-ChildItem $nsisDir -Filter "*_portable.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
+            if ($portable) {
+              $newName = Join-Path $nsisDir "harmonixse_windows_${VERSION}_x86_64_portable.exe"
+              Rename-Item $portable.FullName $newName -Force
+              Write-Host "✅ Renamed portable: $newName"
+            }
+          } else {
+            Write-Host "⚠️ NSIS directory not found: $nsisDir"
           }
 
-          # ZIP portable
-          $zip = Get-ChildItem "$($bundle.FullName)\zip" -Filter "*.zip" -ErrorAction SilentlyContinue | Select-Object -First 1
-          if ($zip) {
-            Rename-Item $zip.FullName "$($bundle.FullName)\harmonixse_windows_${VERSION}_x86_64_portable.zip" -Force
+          # ZIP - rename INSIDE zip\ folder
+          $zipDir = Join-Path $bundle.FullName "zip"
+          if (Test-Path $zipDir) {
+            $zip = Get-ChildItem $zipDir -Filter "*.zip" -ErrorAction SilentlyContinue | Select-Object -First 1
+            if ($zip) {
+              $newName = Join-Path $zipDir "harmonixse_windows_${VERSION}_x86_64_portable.zip"
+              Rename-Item $zip.FullName $newName -Force
+              Write-Host "✅ Renamed zip: $newName"
+            } else {
+              Write-Host "⚠️ No ZIP found in $zipDir"
+            }
+          } else {
+            Write-Host "⚠️ ZIP directory not found: $zipDir"
           }
 
       # ---------------------------
