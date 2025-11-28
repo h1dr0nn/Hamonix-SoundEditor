@@ -40,8 +40,15 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          ref: build
           fetch-depth: 0
+
+      - name: Debug State
+        shell: bash
+        run: |
+          echo "=== Content of src-tauri/icons ==="
+          ls -R src-tauri/icons
+          echo "=== Content of src-tauri/tauri.conf.json ==="
+          cat src-tauri/tauri.conf.json
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
