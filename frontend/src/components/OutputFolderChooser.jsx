@@ -1,6 +1,6 @@
 import React from 'react';
 import { FiFolder } from 'react-icons/fi';
-import { open } from '@tauri-apps/api/dialog';
+import { open } from '@tauri-apps/plugin-dialog';
 
 export function OutputFolderChooser({ path, onChoose }) {
   const handleChooseFolder = async () => {

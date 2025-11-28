@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { FiUpload, FiFolder } from 'react-icons/fi';
-import { open } from '@tauri-apps/api/dialog';
-import { readBinaryFile } from '@tauri-apps/api/fs';
+import { open } from '@tauri-apps/plugin-dialog';
+import { readFile } from '@tauri-apps/plugin-fs';
 import { designTokens } from '../utils/theme';
 import { isAudioFile } from '../utils/audioUtils';
 

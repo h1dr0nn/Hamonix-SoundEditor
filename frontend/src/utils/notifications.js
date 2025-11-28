@@ -2,7 +2,7 @@
  * System notification helpers using Tauri notification API
  */
 
-import { isPermissionGranted, requestPermission, sendNotification } from '@tauri-apps/api/notification';
+import { isPermissionGranted, requestPermission, sendNotification } from '@tauri-apps/plugin-notification';
 
 /**
  * Ensure notification permissions are granted

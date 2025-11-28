@@ -3,7 +3,7 @@
  */
 
 import { useState } from 'react';
-import { invoke } from '@tauri-apps/api/tauri';
+import { invoke } from '@tauri-apps/api/core';
 
 /**
  * Hook for convert_audio Tauri command

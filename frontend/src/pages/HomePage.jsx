@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { FiSettings } from 'react-icons/fi';
 import { listen } from '@tauri-apps/api/event';
 import { dirname } from '@tauri-apps/api/path';
-import { readBinaryFile } from '@tauri-apps/api/fs';
+import { readFile } from '@tauri-apps/plugin-fs';
 import { DragDropArea } from '../components/DragDropArea';
 import { FileListPanel } from '../components/FileListPanel';
 import { FormatSelector } from '../components/FormatSelector';
@@ -188,7 +188,7 @@ export function HomePage({
             // If this is a path-based file from browse, read it now
             if (actualFile._needsReading) {
               try {
-                const content = await readBinaryFile(actualFile.path);
+                const content = await readFile(actualFile.path);
                 actualFile = new File([content], actualFile.name, {
                   type: 'audio/*',
                   lastModified: actualFile.lastModified

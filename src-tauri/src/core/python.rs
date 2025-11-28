@@ -6,7 +6,7 @@ use serde_json::Value;
 use std::io::{BufRead, BufReader, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
-use tauri::Manager;
+use tauri::{path::BaseDirectory, Emitter, Manager};
 
 #[derive(Debug)]
 struct PythonResolution {
@@ -97,7 +97,10 @@ pub fn execute_python_conversion(
 
     let ffmpeg_resource_path = format!("binaries/{}", ffmpeg_binary_name);
 
-    let mut ffmpeg_path_opt = app.path_resolver().resolve_resource(&ffmpeg_resource_path);
+    let mut ffmpeg_path_opt = app
+        .path()
+        .resolve(&ffmpeg_resource_path, BaseDirectory::Resource)
+        .ok();
 
     // In dev mode, if resource resolution fails, try direct filesystem path
     if ffmpeg_path_opt.is_none()
@@ -220,7 +223,7 @@ pub fn execute_python_conversion(
 
                 match serde_json::from_str::<Value>(&text) {
                     Ok(value) => {
-                        if let Err(err) = app.emit_all("conversion-progress", value.clone()) {
+                        if let Err(err) = app.emit("conversion-progress", value.clone()) {
                             log_message(
                                 "tauri",
                                 &format!("Failed to emit progress event: {}", err),
@@ -296,7 +299,9 @@ fn resolve_python(app: &tauri::AppHandle) -> Result<PythonResolution, String> {
 
     let backend_candidates = vec![
         // Production: bundled resource
-        app.path_resolver().resolve_resource("backend/main.py"),
+        app.path()
+            .resolve("backend/main.py", BaseDirectory::Resource)
+            .ok(),
         // Dev mode: relative to project root
         std::env::current_dir()
             .ok()
@@ -329,12 +334,14 @@ fn resolve_python(app: &tauri::AppHandle) -> Result<PythonResolution, String> {
     );
 
     // Try new binaries/ location first (for Phase 4 bundled Python)
-    let binaries_root = app.path_resolver().resolve_resource("binaries");
+    let binaries_root = app.path().resolve("binaries", BaseDirectory::Resource).ok();
 
     // Then try old bin/ locations (for backward compatibility)
     let bin_root_candidates = [
-        app.path_resolver().resolve_resource("bin"),
-        app.path_resolver().resolve_resource("src-tauri/bin"),
+        app.path().resolve("bin", BaseDirectory::Resource).ok(),
+        app.path()
+            .resolve("src-tauri/bin", BaseDirectory::Resource)
+            .ok(),
     ];
 
     let bin_root = bin_root_candidates
