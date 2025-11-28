@@ -140,26 +140,34 @@ if [[ "$PLATFORM" == "Darwin" ]]; then
     echo -e "${BLUE}=== Downloading for macOS ===${NC}"
     echo ""
     
-    # Download Python for both architectures
-    download_python "aarch64-apple-darwin" \
-        "https://github.com/astral-sh/python-build-standalone/releases/download/${PBS_TAG}/cpython-${PYTHON_VERSION_FULL}+${PBS_TAG}-aarch64-apple-darwin-install_only.tar.gz"
-    
-    download_python "x86_64-apple-darwin" \
-        "https://github.com/astral-sh/python-build-standalone/releases/download/${PBS_TAG}/cpython-${PYTHON_VERSION_FULL}+${PBS_TAG}-x86_64-apple-darwin-install_only.tar.gz"
-    
-    # Download FFmpeg for both architectures
-    download_ffmpeg_macos "aarch64-apple-darwin"
-    download_ffmpeg_macos "x86_64-apple-darwin"
-    
-    echo ""
-    echo -e "${BLUE}=== Downloading Windows binaries (for cross-platform support) ===${NC}"
-    echo ""
-    
-    # Also download Windows binaries for future cross-compilation
-    download_python "x86_64-pc-windows-msvc" \
-        "https://github.com/astral-sh/python-build-standalone/releases/download/${PBS_TAG}/cpython-${PYTHON_VERSION_FULL}+${PBS_TAG}-x86_64-pc-windows-msvc-install_only.tar.gz"
-    
-    download_ffmpeg_windows "x86_64-pc-windows-msvc"
+    # Check if we're in CI mode with a specific target
+    if [ -n "$TARGET_ARCH" ]; then
+        echo "CI mode detected: downloading only for $TARGET_ARCH"
+        download_python "$TARGET_ARCH" \
+            "https://github.com/astral-sh/python-build-standalone/releases/download/${PBS_TAG}/cpython-${PYTHON_VERSION_FULL}+${PBS_TAG}-${TARGET_ARCH}-install_only.tar.gz"
+        download_ffmpeg_macos "$TARGET_ARCH"
+    else
+        # Local development: download for both architectures
+        download_python "aarch64-apple-darwin" \
+            "https://github.com/astral-sh/python-build-standalone/releases/download/${PBS_TAG}/cpython-${PYTHON_VERSION_FULL}+${PBS_TAG}-aarch64-apple-darwin-install_only.tar.gz"
+        
+        download_python "x86_64-apple-darwin" \
+            "https://github.com/astral-sh/python-build-standalone/releases/download/${PBS_TAG}/cpython-${PYTHON_VERSION_FULL}+${PBS_TAG}-x86_64-apple-darwin-install_only.tar.gz"
+        
+        # Download FFmpeg for both architectures
+        download_ffmpeg_macos "aarch64-apple-darwin"
+        download_ffmpeg_macos "x86_64-apple-darwin"
+        
+        echo ""
+        echo -e "${BLUE}=== Downloading Windows binaries (for cross-platform support) ===${NC}"
+        echo ""
+        
+        # Also download Windows binaries for future cross-compilation
+        download_python "x86_64-pc-windows-msvc" \
+            "https://github.com/astral-sh/python-build-standalone/releases/download/${PBS_TAG}/cpython-${PYTHON_VERSION_FULL}+${PBS_TAG}-x86_64-pc-windows-msvc-install_only.tar.gz"
+        
+        download_ffmpeg_windows "x86_64-pc-windows-msvc"
+    fi
     
 elif [[ "$PLATFORM" == "Linux" ]]; then
     echo -e "${BLUE}=== Downloading for Linux ===${NC}"

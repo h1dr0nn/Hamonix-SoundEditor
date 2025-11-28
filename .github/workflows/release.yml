@@ -105,6 +105,8 @@ jobs:
         run: |
           chmod +x scripts/download-binaries.sh
           ./scripts/download-binaries.sh
+        env:
+          TARGET_ARCH: ${{ matrix.target }}
         shell: bash
 
       - name: Install backend dependencies
@@ -259,7 +261,7 @@ jobs:
 
       - name: Verify FFmpeg
         run: |
-          $FFMPEG_BIN = 'src-tauri/binaries/ffmpeg-x86_64-pc-windows-msvc.exe'
+          $FFMPEG_BIN = "src-tauri/binaries/ffmpeg-x86_64-pc-windows-msvc.exe"
           if (Test-Path $FFMPEG_BIN) {
             Write-Host "✓ FFmpeg found at $FFMPEG_BIN"
             Get-Item $FFMPEG_BIN | Select-Object Name,Length
