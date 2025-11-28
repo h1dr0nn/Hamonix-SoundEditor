@@ -37,23 +37,26 @@ jobs:
     runs-on: ${{ matrix.platform }}
 
     steps:
+      # ----------------------
+      # Checkout
+      # ----------------------
       - name: Checkout code
         uses: actions/checkout@v4
         with:
           ref: build
           fetch-depth: 0
 
-      # ----------------------------
-      # Node setup
-      # ----------------------------
+      # ----------------------
+      # Node
+      # ----------------------
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 20
 
-      # ----------------------------
-      # Rust setup
-      # ----------------------------
+      # ----------------------
+      # Rust
+      # ----------------------
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
         with:
@@ -64,9 +67,9 @@ jobs:
         with:
           workspaces: "./src-tauri -> target"
 
-      # ----------------------------
-      # Linux requirements
-      # ----------------------------
+      # ----------------------
+      # Linux deps
+      # ----------------------
       - name: Install Linux dependencies
         if: matrix.platform == 'ubuntu-22.04'
         run: |
@@ -75,20 +78,20 @@ jobs:
             libwebkit2gtk-4.0-dev \
             libgtk-3-dev \
             libssl-dev \
-            curl wget file patchelf \
-            build-essential
+            build-essential \
+            curl wget file patchelf
 
-      # ----------------------------
-      # Setup Python (system)
-      # ----------------------------
+      # ----------------------
+      # Python (system)
+      # ----------------------
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
-      # ----------------------------
+      # ----------------------
       # Download Python + FFmpeg bundle
-      # ----------------------------
+      # ----------------------
       - name: Download binaries (Python + FFmpeg)
         run: |
           chmod +x scripts/download-binaries.sh
@@ -96,16 +99,16 @@ jobs:
         env:
           TARGET_ARCH: ${{ matrix.target }}
 
-      # ----------------------------
-      # Install backend Python packages
-      # ----------------------------
+      # ----------------------
+      # python deps
+      # ----------------------
       - name: Install backend dependencies
         shell: bash
         run: |
           if [ "${{ matrix.platform }}" = "windows-latest" ]; then
             PYTHON_BIN="src-tauri/binaries/python-${{ matrix.target }}/python.exe"
           else
-            PYTHON_BIN="src-tauri/binaries/python-${{ matrix.target }}/bin/python3"
+            PYTHON_BIN="./src-tauri/binaries/python-${{ matrix.target }}/bin/python3"
           fi
 
           if [ ! -f "$PYTHON_BIN" ]; then
@@ -117,16 +120,16 @@ jobs:
           $PYTHON_BIN -m pip install --upgrade pip
           $PYTHON_BIN -m pip install -r requirements.txt
 
-      # ----------------------------
+      # ----------------------
       # Verify FFmpeg
-      # ----------------------------
+      # ----------------------
       - name: Verify FFmpeg
         shell: bash
         run: |
           if [ "${{ matrix.platform }}" = "windows-latest" ]; then
             FFMPEG_BIN="src-tauri/binaries/ffmpeg-${{ matrix.target }}.exe"
           else
-            FFMPEG_BIN="src-tauri/binaries/ffmpeg-${{ matrix.target }}"
+            FFMPEG_BIN="./src-tauri/binaries/ffmpeg-${{ matrix.target }}"
           fi
 
           if [ ! -f "$FFMPEG_BIN" ]; then
@@ -137,29 +140,52 @@ jobs:
           echo "✓ FFmpeg OK:"
           ls -lh "$FFMPEG_BIN"
 
-      # ----------------------------
-      # Frontend dependencies
-      # ----------------------------
+      # ----------------------
+      # Frontend deps
+      # ----------------------
       - name: Install frontend dependencies
         run: |
           cd frontend
           npm ci
 
-      # ----------------------------
-      # Build Tauri (direct command)
-      # ----------------------------
+      # ----------------------
+      # Build Tauri
+      # ----------------------
       - name: Build Tauri
         run: |
-          echo "🚀 Building Tauri: ${{ matrix.target }}"
+          echo "🚀 Tauri Build: ${{ matrix.target }}"
           npm --prefix frontend run tauri build -- ${{ matrix.args }}
 
-      # ----------------------------
-      # Upload artifacts to Release
-      # ----------------------------
+      # ----------------------
+      # Rename macOS output to avoid duplicate names
+      # ----------------------
+      - name: Rename macOS output
+        if: matrix.platform == 'macos-latest'
+        run: |
+          BUNDLE_DIR=$(find src-tauri/target -type d -name "bundle" | head -n 1)
+          DMG_FILE=$(find "$BUNDLE_DIR" -type f -name "*.dmg" | head -n 1)
+
+          if [ -f "$DMG_FILE" ]; then
+            NEW_NAME="$BUNDLE_DIR/Harmonix-SE-${{ matrix.target }}.dmg"
+            mv "$DMG_FILE" "$NEW_NAME"
+            echo "Renamed to: $NEW_NAME"
+          fi
+
+      # ----------------------
+      # Upload Release Assets (ONLY Tauri outputs)
+      # ----------------------
       - name: Upload Release Assets
         uses: softprops/action-gh-release@v1
         with:
           files: |
-            src-tauri/target/**/bundle/**/* 
+            src-tauri/target/**/bundle/**/*.dmg
+            src-tauri/target/**/bundle/**/*.msi
+            src-tauri/target/**/bundle/**/*setup.exe
+            src-tauri/target/**/bundle/**/*.exe
+            src-tauri/target/**/bundle/**/*.AppImage
+            src-tauri/target/**/bundle/**/*.deb
+            src-tauri/target/**/bundle/**/*.rpm
+            src-tauri/target/**/bundle/**/*.zip
+            src-tauri/target/**/bundle/**/*.app.tar.gz
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
