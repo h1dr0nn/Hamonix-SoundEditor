@@ -309,13 +309,13 @@ jobs:
           $zipName = "harmonixse_windows_${VERSION}_x86_64_portable.zip"
           Compress-Archive -Path $portableDir -DestinationPath $zipName -Force
 
-          # Move to bundle directory for upload
-          $bundleDir = Get-ChildItem -Recurse -Directory -Path "src-tauri\target" | Where-Object { $_.Name -eq "nsis" } | Select-Object -First 1
-          if ($bundleDir) {
-            Move-Item $zipName $bundleDir.FullName -Force
-            Write-Host "✅ Created portable ZIP: $bundleDir\$zipName"
+          # Move to bundle/nsis directory for upload
+          $nsisDir = Get-ChildItem -Recurse -Directory -Path "src-tauri\target" | Where-Object { $_.FullName -like "*\bundle\nsis" } | Select-Object -First 1
+          if ($nsisDir) {
+            Move-Item $zipName $nsisDir.FullName -Force
+            Write-Host "✅ Created portable ZIP: $nsisDir\$zipName"
           } else {
-            Write-Host "⚠️ Bundle directory not found, ZIP at: $zipName"
+            Write-Host "⚠️ Bundle/nsis directory not found, ZIP at: $zipName"
           }
 
           # Cleanup
