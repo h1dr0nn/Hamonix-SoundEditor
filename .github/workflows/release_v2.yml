@@ -165,6 +165,17 @@ jobs:
         run: |
           tauri build -- ${{ matrix.args }}
 
+      - name: Debug macOS binary (macOS only)
+        if: matrix.platform == 'macos-latest'
+        shell: bash
+        run: |
+          echo "=== Listing target/release directory ==="
+          ls -la src-tauri/target/release/ || true
+          echo "=== Listing target/${{ matrix.target }}/release directory ==="
+          ls -la src-tauri/target/${{ matrix.target }}/release/ || true
+          echo "=== Searching for all binaries ==="
+          find src-tauri/target -type f -perm +111 -name "*harmonix*" || true
+
       # ---------------------------
       # macOS rename
       # ---------------------------
