@@ -283,10 +283,43 @@ jobs:
           if ($installer) {
             $newName = Join-Path $installer.DirectoryName "harmonixse_windows_${VERSION}_x86_64.exe"
             Rename-Item $installer.FullName $newName -Force
-            Write-Host "✅ Renamed installer: $newName"
           } else {
             Write-Host "⚠️ No NSIS installer found"
           }
+
+      - name: Create Windows Portable ZIP
+        if: matrix.platform == 'windows-latest'
+        shell: pwsh
+        run: |
+          $VERSION = "${{ github.ref_name }}".TrimStart("v")
+
+          # Create portable directory
+          $portableDir = "HarmonixSE-Portable"
+          New-Item -ItemType Directory -Force -Path $portableDir | Out-Null
+
+          # Copy binary
+          Copy-Item "src-tauri\target\release\harmonixse.exe" "$portableDir\HarmonixSE.exe"
+
+          # Copy bundled binaries (Python + FFmpeg)
+          if (Test-Path "src-tauri\binaries") {
+            Copy-Item -Recurse "src-tauri\binaries" "$portableDir\binaries"
+          }
+
+          # Create ZIP
+          $zipName = "harmonixse_windows_${VERSION}_x86_64_portable.zip"
+          Compress-Archive -Path $portableDir -DestinationPath $zipName -Force
+
+          # Move to bundle directory for upload
+          $bundleDir = Get-ChildItem -Recurse -Directory -Path "src-tauri\target" | Where-Object { $_.Name -eq "nsis" } | Select-Object -First 1
+          if ($bundleDir) {
+            Move-Item $zipName $bundleDir.FullName -Force
+            Write-Host "✅ Created portable ZIP: $bundleDir\$zipName"
+          } else {
+            Write-Host "⚠️ Bundle directory not found, ZIP at: $zipName"
+          }
+
+          # Cleanup
+          Remove-Item -Recurse -Force $portableDir
 
       # ---------------------------
       # Upload
@@ -301,5 +334,6 @@ jobs:
             src-tauri/target/**/bundle/**/harmonixse_linux_*_x86_64.deb
             src-tauri/target/**/bundle/**/harmonixse_windows_*_x86_64.msi
             src-tauri/target/**/bundle/**/harmonixse_windows_*_x86_64.exe
+            src-tauri/target/**/bundle/**/harmonixse_windows_*_x86_64_portable.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
