@@ -288,6 +288,16 @@ jobs:
             Write-Host "⚠️ No NSIS installer found"
           }
 
+          # Portable EXE (NSIS portable mode)
+          $portable = Get-ChildItem $bundle.FullName -Recurse -Filter "*_portable.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
+          if ($portable) {
+            $newName = Join-Path $portable.DirectoryName "harmonixse_windows_${VERSION}_x86_64_portable.exe"
+            Rename-Item $portable.FullName $newName -Force
+            Write-Host "✅ Renamed portable EXE: $newName"
+          } else {
+            Write-Host "⚠️ No portable EXE found"
+          }
+
       # ---------------------------
       # Upload
       # ---------------------------
@@ -301,5 +311,6 @@ jobs:
             src-tauri/target/**/bundle/**/harmonixse_linux_*_x86_64.deb
             src-tauri/target/**/bundle/**/harmonixse_windows_*_x86_64.msi
             src-tauri/target/**/bundle/**/harmonixse_windows_*_x86_64.exe
+            src-tauri/target/**/bundle/**/harmonixse_windows_*_x86_64_portable.exe
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
