@@ -5,8 +5,7 @@
     "windows": {
       "nsis": {
         "installerIcon": "icons/icon.ico",
-        "displayLanguageSelector": false,
-        "portable": true
+        "displayLanguageSelector": false
       },
       "wix": {
         "language": "en-US"
