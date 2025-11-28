@@ -35,11 +35,6 @@
     "bundle": {
       "active": true,
       "identifier": "com.h1dr0n.harmonixse",
-      "targets": [
-        "msi",
-        "nsis",
-        "zip"
-      ],
       "resources": [
         "src-tauri/binaries/**/*"
       ],
