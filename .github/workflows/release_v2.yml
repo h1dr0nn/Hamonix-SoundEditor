@@ -184,12 +184,11 @@ jobs:
         shell: bash
         run: |
           VERSION=${GITHUB_REF_NAME#v}
-          # Search for bundle directory (v2 might be bundle/macos)
-          BUNDLE_DIR=$(find src-tauri/target -type d -path "*/bundle/macos" -print -quit)
+          # Search for bundle directory - check dmg first, then macos
+          BUNDLE_DIR=$(find src-tauri/target -type d -path "*/bundle/dmg" -print -quit)
 
           if [ -z "$BUNDLE_DIR" ]; then
-             # Fallback to old path or just bundle
-             BUNDLE_DIR=$(find src-tauri/target -type d -path "*/bundle/dmg" -print -quit)
+             BUNDLE_DIR=$(find src-tauri/target -type d -path "*/bundle/macos" -print -quit)
           fi
 
           if [ -z "$BUNDLE_DIR" ]; then
