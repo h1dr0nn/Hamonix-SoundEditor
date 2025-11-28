@@ -14,24 +14,25 @@ env:
 
 jobs:
   publish-tauri:
-    permissions:
-      contents: write
     strategy:
       fail-fast: false
       matrix:
         include:
-          - platform: 'macos-latest'
-            args: '--target aarch64-apple-darwin'
-            target: 'aarch64-apple-darwin'
-          - platform: 'macos-latest'
-            args: '--target x86_64-apple-darwin'
-            target: 'x86_64-apple-darwin'
-          - platform: 'ubuntu-22.04'
-            args: ''
-            target: 'x86_64-unknown-linux-gnu'
-          - platform: 'windows-latest'
-            args: ''
-            target: 'x86_64-pc-windows-msvc'
+          - platform: macos-latest
+            target: aarch64-apple-darwin
+            args: "--target aarch64-apple-darwin"
+
+          - platform: macos-latest
+            target: x86_64-apple-darwin
+            args: "--target x86_64-apple-darwin"
+
+          - platform: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+            args: ""
+
+          - platform: windows-latest
+            target: x86_64-pc-windows-msvc
+            args: ""
 
     runs-on: ${{ matrix.platform }}
 
@@ -42,14 +43,18 @@ jobs:
           ref: build
           fetch-depth: 0
 
+      # ----------------------------
+      # Node setup
+      # ----------------------------
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
-          cache: "npm"
-          cache-dependency-path: frontend/package-lock.json
+          node-version: 20
 
-      - name: Install Rust stable
+      # ----------------------------
+      # Rust setup
+      # ----------------------------
+      - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
@@ -59,111 +64,102 @@ jobs:
         with:
           workspaces: "./src-tauri -> target"
 
-      - name: Install system dependencies (ubuntu only)
+      # ----------------------------
+      # Linux requirements
+      # ----------------------------
+      - name: Install Linux dependencies
         if: matrix.platform == 'ubuntu-22.04'
         run: |
-          sudo apt-get update
-          sudo apt-get install -y \
+          sudo apt update
+          sudo apt install -y \
             libwebkit2gtk-4.0-dev \
-            build-essential \
-            curl \
-            wget \
-            file \
-            libssl-dev \
             libgtk-3-dev \
-            libayatana-appindicator3-dev \
-            librsvg2-dev \
-            patchelf
+            libssl-dev \
+            curl wget file patchelf \
+            build-essential
 
+      # ----------------------------
+      # Setup Python (system)
+      # ----------------------------
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
+      # ----------------------------
+      # Download Python + FFmpeg bundle
+      # ----------------------------
       - name: Download binaries (Python + FFmpeg)
         run: |
           chmod +x scripts/download-binaries.sh
           ./scripts/download-binaries.sh
         env:
           TARGET_ARCH: ${{ matrix.target }}
-        shell: bash
 
+      # ----------------------------
+      # Install backend Python packages
+      # ----------------------------
       - name: Install backend dependencies
         shell: bash
         run: |
           if [ "${{ matrix.platform }}" = "windows-latest" ]; then
             PYTHON_BIN="src-tauri/binaries/python-${{ matrix.target }}/python.exe"
           else
-            PYTHON_BIN="./src-tauri/binaries/python-${{ matrix.target }}/bin/python3"
+            PYTHON_BIN="src-tauri/binaries/python-${{ matrix.target }}/bin/python3"
           fi
-          
-          if [ -f "$PYTHON_BIN" ]; then
-            echo "Installing backend dependencies with bundled Python..."
-            $PYTHON_BIN -m pip install --upgrade pip
-            $PYTHON_BIN -m pip install -r requirements.txt
-          else
-            echo "Error: Bundled Python not found at $PYTHON_BIN"
+
+          if [ ! -f "$PYTHON_BIN" ]; then
+            echo "❌ Bundled Python not found at $PYTHON_BIN"
             exit 1
           fi
 
+          echo "Installing backend deps with bundled Python..."
+          $PYTHON_BIN -m pip install --upgrade pip
+          $PYTHON_BIN -m pip install -r requirements.txt
+
+      # ----------------------------
+      # Verify FFmpeg
+      # ----------------------------
       - name: Verify FFmpeg
         shell: bash
         run: |
           if [ "${{ matrix.platform }}" = "windows-latest" ]; then
-            FFMPEG_BIN="./src-tauri/binaries/ffmpeg-${{ matrix.target }}.exe"
+            FFMPEG_BIN="src-tauri/binaries/ffmpeg-${{ matrix.target }}.exe"
           else
-            FFMPEG_BIN="./src-tauri/binaries/ffmpeg-${{ matrix.target }}"
+            FFMPEG_BIN="src-tauri/binaries/ffmpeg-${{ matrix.target }}"
           fi
-          
-          if [ -f "$FFMPEG_BIN" ]; then
-            echo "✓ FFmpeg found at $FFMPEG_BIN"
-            ls -lh "$FFMPEG_BIN"
-          else
-            echo "Error: FFmpeg not found at $FFMPEG_BIN"
+
+          if [ ! -f "$FFMPEG_BIN" ]; then
+            echo "❌ FFmpeg not found at $FFMPEG_BIN"
             exit 1
           fi
 
+          echo "✓ FFmpeg OK:"
+          ls -lh "$FFMPEG_BIN"
+
+      # ----------------------------
+      # Frontend dependencies
+      # ----------------------------
       - name: Install frontend dependencies
         run: |
           cd frontend
           npm ci
 
-      - name: Build and release
-        uses: tauri-apps/tauri-action@v0.6.0
+      # ----------------------------
+      # Build Tauri (direct command)
+      # ----------------------------
+      - name: Build Tauri
+        run: |
+          echo "🚀 Building Tauri: ${{ matrix.target }}"
+          npm --prefix frontend run tauri build -- ${{ matrix.args }}
+
+      # ----------------------------
+      # Upload artifacts to Release
+      # ----------------------------
+      - name: Upload Release Assets
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            src-tauri/target/**/bundle/**/* 
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAURI_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
-          TAURI_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
-        with:
-          projectPath: ./
-          tauriScript: npm --prefix frontend run tauri
-          args: ${{ matrix.args }}
-          tagName: ${{ github.ref_name }}
-          releaseName: 'Harmonix SE ${{ github.ref_name }}'
-          releaseBody: |
-            ## Harmonix SE ${{ github.ref_name }}
-
-            ### Downloads
-
-            **macOS**:
-            - Apple Silicon (M1/M2/M3): `Harmonix-SE-*-macOS-arm64.*`
-            - Intel: `Harmonix-SE-*-macOS-x64.*`
-
-            **Windows**:
-            - MSI Installer (recommended): `*.msi`
-            - NSIS Installer: `*_setup.exe`
-            - Portable: `*.exe`
-
-            **Linux**:
-            - AppImage (portable): `*.AppImage`
-            - Debian/Ubuntu: `*.deb`
-
-            ### What's New
-            - See commit history for changes
-
-            ### System Requirements
-            - macOS 10.15+ (Catalina or later)
-            - Windows 10+ (64-bit)
-            - Linux (x64, glibc 2.31+)
-          releaseDraft: false
-          prerelease: false
