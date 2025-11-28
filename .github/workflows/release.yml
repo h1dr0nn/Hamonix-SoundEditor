@@ -37,26 +37,17 @@ jobs:
     runs-on: ${{ matrix.platform }}
 
     steps:
-      # ----------------------
-      # Checkout
-      # ----------------------
       - name: Checkout code
         uses: actions/checkout@v4
         with:
           ref: build
           fetch-depth: 0
 
-      # ----------------------
-      # Node
-      # ----------------------
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 20
 
-      # ----------------------
-      # Rust
-      # ----------------------
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
         with:
@@ -67,9 +58,6 @@ jobs:
         with:
           workspaces: "./src-tauri -> target"
 
-      # ----------------------
-      # Linux deps
-      # ----------------------
       - name: Install Linux dependencies
         if: matrix.platform == 'ubuntu-22.04'
         run: |
@@ -81,27 +69,36 @@ jobs:
             build-essential \
             curl wget file patchelf
 
-      # ----------------------
-      # Python (system) - chủ yếu để dev, script vẫn dùng curl/tar
-      # ----------------------
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
-      # ----------------------
-      # Download Python + FFmpeg bundle
-      # ----------------------
-      - name: Download binaries (Python + FFmpeg)
+      # ----------------------------
+      # DOWNLOAD BINARIES (PYTHON + FFMPEG)
+      # WINDOWS chạy bằng BASH
+      # ----------------------------
+      - name: Download binaries (Windows with Bash)
+        if: matrix.platform == 'windows-latest'
+        shell: bash
+        run: |
+          echo "Running download-binaries.sh via BASH on Windows..."
+          chmod +x scripts/download-binaries.sh
+          ./scripts/download-binaries.sh
+        env:
+          TARGET_ARCH: ${{ matrix.target }}
+
+      - name: Download binaries (macOS/Linux)
+        if: matrix.platform != 'windows-latest'
         run: |
           chmod +x scripts/download-binaries.sh
           ./scripts/download-binaries.sh
         env:
           TARGET_ARCH: ${{ matrix.target }}
 
-      # ----------------------
-      # Backend deps (non-Windows) dùng bundled Python
-      # ----------------------
+      # ----------------------------
+      # PYTHON DEPS INSTALLATION
+      # ----------------------------
       - name: Install backend dependencies (non-Windows)
         if: matrix.platform != 'windows-latest'
         shell: bash
@@ -109,24 +106,20 @@ jobs:
           PYTHON_BIN="./src-tauri/binaries/python-${{ matrix.target }}/bin/python3"
 
           if [ ! -f "$PYTHON_BIN" ]; then
-            echo "❌ Bundled Python not found at $PYTHON_BIN"
+            echo "❌ Bundled Python missing: $PYTHON_BIN"
             ls -R src-tauri/binaries || true
             exit 1
           fi
 
-          echo "Using Python: $PYTHON_BIN"
           "$PYTHON_BIN" -m pip install --upgrade pip
           "$PYTHON_BIN" -m pip install -r requirements.txt
 
-      # ----------------------
-      # Locate Python (Windows) tự động
-      # ----------------------
       - name: Locate Python (Windows)
         if: matrix.platform == 'windows-latest'
         shell: pwsh
         run: |
-          Write-Host "Searching for python.exe in src-tauri\binaries\python-${{ matrix.target }} ..."
-          $found = Get-ChildItem -Recurse -Filter python.exe "src-tauri\binaries\python-${{ matrix.target }}" | Select-Object -First 1
+          Write-Host "Searching for python.exe recursively under src-tauri\binaries..."
+          $found = Get-ChildItem -Recurse -Filter python.exe "src-tauri\binaries" | Select-Object -First 1
 
           if ($found -eq $null) {
             Write-Host "❌ No python.exe found!"
@@ -134,20 +127,20 @@ jobs:
             exit 1
           }
 
-          Write-Host "Found Python at: $($found.FullName)"
+          Write-Host "Python found at: $($found.FullName)"
           "PYTHON_BIN=$($found.FullName)" >> $env:GITHUB_ENV
 
       - name: Install backend dependencies (Windows)
         if: matrix.platform == 'windows-latest'
         shell: pwsh
         run: |
-          Write-Host "Using Python: $env:PYTHON_BIN"
+          Write-Host "Installing Python deps via $env:PYTHON_BIN"
           & $env:PYTHON_BIN -m pip install --upgrade pip
           & $env:PYTHON_BIN -m pip install -r requirements.txt
 
-      # ----------------------
-      # Verify FFmpeg
-      # ----------------------
+      # ----------------------------
+      # VERIFY FFMPEG
+      # ----------------------------
       - name: Verify FFmpeg
         shell: bash
         run: |
@@ -158,96 +151,73 @@ jobs:
           fi
 
           if [ ! -f "$FFMPEG_BIN" ]; then
-            echo "❌ FFmpeg not found at $FFMPEG_BIN"
+            echo "❌ Missing FFmpeg: $FFMPEG_BIN"
             ls -R src-tauri/binaries || true
             exit 1
           fi
 
-          echo "✓ FFmpeg OK:"
-          ls -lh "$FFMPEG_BIN"
-
-      # ----------------------
-      # Frontend deps
-      # ----------------------
+      # ----------------------------
+      # FRONTEND
+      # ----------------------------
       - name: Install frontend dependencies
         run: |
           cd frontend
           npm ci
 
-      # ----------------------
-      # Build Tauri
-      # ----------------------
+      # ----------------------------
+      # BUILD TAURI
+      # ----------------------------
       - name: Build Tauri
         run: |
-          echo "🚀 Tauri Build: ${{ matrix.target }}"
+          echo "🚀 Building Tauri: ${{ matrix.target }}"
           npm --prefix frontend run tauri build -- ${{ matrix.args }}
 
-      # ----------------------
-      # Rename macOS outputs: harmonixse_macos_*.dmg
-      # ----------------------
+      # ----------------------------
+      # RENAME MACOS FILES
+      # ----------------------------
       - name: Rename macOS outputs
         if: matrix.platform == 'macos-latest'
         shell: bash
         run: |
-          BUNDLE_DIR=$(find src-tauri/target -type d -name bundle | head -n 1 || echo "")
-          if [ -z "$BUNDLE_DIR" ]; then
-            echo "No bundle dir found for macOS"
-            exit 1
-          fi
+          BUNDLE_DIR=$(find src-tauri/target -type d -name bundle | head -n 1)
+          DMG=$(find "$BUNDLE_DIR" -type f -name "*.dmg" | head -n 1)
 
-          DMG_FILE=$(find "$BUNDLE_DIR" -type f -name "*.dmg" | head -n 1 || echo "")
-          if [ -z "$DMG_FILE" ]; then
+          if [ -z "$DMG" ]; then
             echo "No .dmg found"
             exit 0
           fi
 
           if [[ "${{ matrix.target }}" == "aarch64-apple-darwin" ]]; then
-            NEW_NAME="$BUNDLE_DIR/harmonixse_macos_arm64.dmg"
+            mv "$DMG" "$BUNDLE_DIR/harmonixse_macos_arm64.dmg"
           else
-            NEW_NAME="$BUNDLE_DIR/harmonixse_macos_x64.dmg"
+            mv "$DMG" "$BUNDLE_DIR/harmonixse_macos_x64.dmg"
           fi
 
-          mv "$DMG_FILE" "$NEW_NAME"
-          echo "Renamed: $DMG_FILE -> $NEW_NAME"
-
-      # ----------------------
-      # Rename Linux outputs: harmonixse_linux_x64.*
-      # ----------------------
+      # ----------------------------
+      # RENAME LINUX FILES
+      # ----------------------------
       - name: Rename Linux outputs
         if: matrix.platform == 'ubuntu-22.04'
         shell: bash
         run: |
-          BUNDLE_DIR=$(find src-tauri/target -type d -name bundle | head -n 1 || echo "")
-          if [ -z "$BUNDLE_DIR" ]; then
-            echo "No bundle dir found for Linux"
-            exit 1
-          fi
+          BUNDLE_DIR=$(find src-tauri/target -type d -name bundle | head -n 1)
 
-          APPIMG=$(find "$BUNDLE_DIR" -type f -name "*.AppImage" | head -n 1 || echo "")
-          DEB=$(find "$BUNDLE_DIR" -type f -name "*.deb" | head -n 1 || echo "")
+          APP=$(find "$BUNDLE_DIR" -type f -name "*.AppImage" | head -n 1)
+          DEB=$(find "$BUNDLE_DIR" -type f -name "*.deb" | head -n 1)
 
-          if [ -n "$APPIMG" ]; then
-            mv "$APPIMG" "$BUNDLE_DIR/harmonixse_linux_x64.AppImage"
-            echo "Renamed AppImage -> harmonixse_linux_x64.AppImage"
-          fi
+          [ -n "$APP" ] && mv "$APP" "$BUNDLE_DIR/harmonixse_linux_x64.AppImage"
+          [ -n "$DEB" ] && mv "$DEB" "$BUNDLE_DIR/harmonixse_linux_x64.deb"
 
-          if [ -n "$DEB" ]; then
-            mv "$DEB" "$BUNDLE_DIR/harmonixse_linux_x64.deb"
-            echo "Renamed deb -> harmonixse_linux_x64.deb"
-          fi
-
-      # ----------------------
-      # Rename Windows outputs: harmonixse_windows_x64.*
-      # ----------------------
+      # ----------------------------
+      # RENAME WINDOWS FILES
+      # ----------------------------
       - name: Rename Windows outputs
         if: matrix.platform == 'windows-latest'
         shell: pwsh
         run: |
           $msi = Get-ChildItem -Recurse -Filter "*.msi" src-tauri/target | Select-Object -First 1
           if ($msi) {
-            $new = Join-Path $msi.DirectoryName "harmonixse_windows_x64.msi"
-            Rename-Item $msi.FullName $new -Force
-            Write-Host "Renamed MSI -> $new"
+            Rename-Item $msi.FullName "harmonixse_windows_x64.msi" -Force
           }
 
           $exe = Get-ChildItem -Recurse -Filter "*.exe" src-tauri/target `
@@ -255,14 +225,12 @@ jobs:
             | Select-Object -First 1
 
           if ($exe) {
-            $newExe = Join-Path $exe.DirectoryName "harmonixse_windows_x64.exe"
-            Rename-Item $exe.FullName $newExe -Force
-            Write-Host "Renamed EXE -> $newExe"
+            Rename-Item $exe.FullName "harmonixse_windows_x64.exe" -Force
           }
 
-      # ----------------------
-      # Upload Release Assets (đã đồng bộ tên)
-      # ----------------------
+      # ----------------------------
+      # UPLOAD TO RELEASE
+      # ----------------------------
       - name: Upload Release Assets
         uses: softprops/action-gh-release@v1
         with:
