@@ -82,7 +82,7 @@ jobs:
             curl wget file patchelf
 
       # ----------------------
-      # Python (system)
+      # Python (system) - chủ yếu để dev, script vẫn dùng curl/tar
       # ----------------------
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -100,25 +100,50 @@ jobs:
           TARGET_ARCH: ${{ matrix.target }}
 
       # ----------------------
-      # python deps
+      # Backend deps (non-Windows) dùng bundled Python
       # ----------------------
-      - name: Install backend dependencies
+      - name: Install backend dependencies (non-Windows)
+        if: matrix.platform != 'windows-latest'
         shell: bash
         run: |
-          if [ "${{ matrix.platform }}" = "windows-latest" ]; then
-            PYTHON_BIN="src-tauri/binaries/python-${{ matrix.target }}/python.exe"
-          else
-            PYTHON_BIN="./src-tauri/binaries/python-${{ matrix.target }}/bin/python3"
-          fi
+          PYTHON_BIN="./src-tauri/binaries/python-${{ matrix.target }}/bin/python3"
 
           if [ ! -f "$PYTHON_BIN" ]; then
             echo "❌ Bundled Python not found at $PYTHON_BIN"
+            ls -R src-tauri/binaries || true
             exit 1
           fi
 
-          echo "Installing backend deps with bundled Python..."
-          $PYTHON_BIN -m pip install --upgrade pip
-          $PYTHON_BIN -m pip install -r requirements.txt
+          echo "Using Python: $PYTHON_BIN"
+          "$PYTHON_BIN" -m pip install --upgrade pip
+          "$PYTHON_BIN" -m pip install -r requirements.txt
+
+      # ----------------------
+      # Locate Python (Windows) tự động
+      # ----------------------
+      - name: Locate Python (Windows)
+        if: matrix.platform == 'windows-latest'
+        shell: pwsh
+        run: |
+          Write-Host "Searching for python.exe in src-tauri\binaries\python-${{ matrix.target }} ..."
+          $found = Get-ChildItem -Recurse -Filter python.exe "src-tauri\binaries\python-${{ matrix.target }}" | Select-Object -First 1
+
+          if ($found -eq $null) {
+            Write-Host "❌ No python.exe found!"
+            Get-ChildItem -Recurse "src-tauri\binaries" | Select-Object FullName
+            exit 1
+          }
+
+          Write-Host "Found Python at: $($found.FullName)"
+          "PYTHON_BIN=$($found.FullName)" >> $env:GITHUB_ENV
+
+      - name: Install backend dependencies (Windows)
+        if: matrix.platform == 'windows-latest'
+        shell: pwsh
+        run: |
+          Write-Host "Using Python: $env:PYTHON_BIN"
+          & $env:PYTHON_BIN -m pip install --upgrade pip
+          & $env:PYTHON_BIN -m pip install -r requirements.txt
 
       # ----------------------
       # Verify FFmpeg
@@ -129,11 +154,12 @@ jobs:
           if [ "${{ matrix.platform }}" = "windows-latest" ]; then
             FFMPEG_BIN="src-tauri/binaries/ffmpeg-${{ matrix.target }}.exe"
           else
-            FFMPEG_BIN="./src-tauri/binaries/ffmpeg-${{ matrix.target }}"
+            FFMPEG_BIN="src-tauri/binaries/ffmpeg-${{ matrix.target }}"
           fi
 
           if [ ! -f "$FFMPEG_BIN" ]; then
             echo "❌ FFmpeg not found at $FFMPEG_BIN"
+            ls -R src-tauri/binaries || true
             exit 1
           fi
 
@@ -157,35 +183,95 @@ jobs:
           npm --prefix frontend run tauri build -- ${{ matrix.args }}
 
       # ----------------------
-      # Rename macOS output to avoid duplicate names
+      # Rename macOS outputs: harmonixse_macos_*.dmg
       # ----------------------
-      - name: Rename macOS output
+      - name: Rename macOS outputs
         if: matrix.platform == 'macos-latest'
+        shell: bash
         run: |
-          BUNDLE_DIR=$(find src-tauri/target -type d -name "bundle" | head -n 1)
-          DMG_FILE=$(find "$BUNDLE_DIR" -type f -name "*.dmg" | head -n 1)
+          BUNDLE_DIR=$(find src-tauri/target -type d -name bundle | head -n 1 || echo "")
+          if [ -z "$BUNDLE_DIR" ]; then
+            echo "No bundle dir found for macOS"
+            exit 1
+          fi
 
-          if [ -f "$DMG_FILE" ]; then
-            NEW_NAME="$BUNDLE_DIR/Harmonix-SE-${{ matrix.target }}.dmg"
-            mv "$DMG_FILE" "$NEW_NAME"
-            echo "Renamed to: $NEW_NAME"
+          DMG_FILE=$(find "$BUNDLE_DIR" -type f -name "*.dmg" | head -n 1 || echo "")
+          if [ -z "$DMG_FILE" ]; then
+            echo "No .dmg found"
+            exit 0
+          fi
+
+          if [[ "${{ matrix.target }}" == "aarch64-apple-darwin" ]]; then
+            NEW_NAME="$BUNDLE_DIR/harmonixse_macos_arm64.dmg"
+          else
+            NEW_NAME="$BUNDLE_DIR/harmonixse_macos_x64.dmg"
+          fi
+
+          mv "$DMG_FILE" "$NEW_NAME"
+          echo "Renamed: $DMG_FILE -> $NEW_NAME"
+
+      # ----------------------
+      # Rename Linux outputs: harmonixse_linux_x64.*
+      # ----------------------
+      - name: Rename Linux outputs
+        if: matrix.platform == 'ubuntu-22.04'
+        shell: bash
+        run: |
+          BUNDLE_DIR=$(find src-tauri/target -type d -name bundle | head -n 1 || echo "")
+          if [ -z "$BUNDLE_DIR" ]; then
+            echo "No bundle dir found for Linux"
+            exit 1
+          fi
+
+          APPIMG=$(find "$BUNDLE_DIR" -type f -name "*.AppImage" | head -n 1 || echo "")
+          DEB=$(find "$BUNDLE_DIR" -type f -name "*.deb" | head -n 1 || echo "")
+
+          if [ -n "$APPIMG" ]; then
+            mv "$APPIMG" "$BUNDLE_DIR/harmonixse_linux_x64.AppImage"
+            echo "Renamed AppImage -> harmonixse_linux_x64.AppImage"
+          fi
+
+          if [ -n "$DEB" ]; then
+            mv "$DEB" "$BUNDLE_DIR/harmonixse_linux_x64.deb"
+            echo "Renamed deb -> harmonixse_linux_x64.deb"
           fi
 
       # ----------------------
-      # Upload Release Assets (ONLY Tauri outputs)
+      # Rename Windows outputs: harmonixse_windows_x64.*
+      # ----------------------
+      - name: Rename Windows outputs
+        if: matrix.platform == 'windows-latest'
+        shell: pwsh
+        run: |
+          $msi = Get-ChildItem -Recurse -Filter "*.msi" src-tauri/target | Select-Object -First 1
+          if ($msi) {
+            $new = Join-Path $msi.DirectoryName "harmonixse_windows_x64.msi"
+            Rename-Item $msi.FullName $new -Force
+            Write-Host "Renamed MSI -> $new"
+          }
+
+          $exe = Get-ChildItem -Recurse -Filter "*.exe" src-tauri/target `
+            | Where-Object { $_.Name -notlike "*ffmpeg*" } `
+            | Select-Object -First 1
+
+          if ($exe) {
+            $newExe = Join-Path $exe.DirectoryName "harmonixse_windows_x64.exe"
+            Rename-Item $exe.FullName $newExe -Force
+            Write-Host "Renamed EXE -> $newExe"
+          }
+
+      # ----------------------
+      # Upload Release Assets (đã đồng bộ tên)
       # ----------------------
       - name: Upload Release Assets
         uses: softprops/action-gh-release@v1
         with:
           files: |
-            src-tauri/target/**/bundle/**/*.dmg
-            src-tauri/target/**/bundle/**/*.msi
-            src-tauri/target/**/bundle/**/*setup.exe
-            src-tauri/target/**/bundle/**/*.exe
-            src-tauri/target/**/bundle/**/*.AppImage
-            src-tauri/target/**/bundle/**/*.deb
-            src-tauri/target/**/bundle/**/*.rpm
-            src-tauri/target/**/bundle/**/*.zip
-            src-tauri/target/**/bundle/**/*.app.tar.gz
+            src-tauri/target/**/bundle/**/harmonixse_macos_arm64.dmg
+            src-tauri/target/**/bundle/**/harmonixse_macos_x64.dmg
+            src-tauri/target/**/bundle/**/harmonixse_linux_x64.AppImage
+            src-tauri/target/**/bundle/**/harmonixse_linux_x64.deb
+            src-tauri/target/**/bundle/**/harmonixse_windows_x64.msi
+            src-tauri/target/**/bundle/**/harmonixse_windows_x64.exe
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
