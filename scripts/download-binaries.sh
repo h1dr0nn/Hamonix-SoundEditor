@@ -142,25 +142,10 @@ if [[ "$PLATFORM" == "Darwin" ]]; then
     
     # Check if we're in CI mode with a specific target
     if [ -n "$TARGET_ARCH" ]; then
-        echo "CI mode detected: downloading for $TARGET_ARCH"
-        
-        if [ "$TARGET_ARCH" == "universal-apple-darwin" ]; then
-            # Universal binary needs both architectures
-            echo "Universal build detected: downloading both arm64 and x86_64"
-            download_python "aarch64-apple-darwin" \
-                "https://github.com/astral-sh/python-build-standalone/releases/download/${PBS_TAG}/cpython-${PYTHON_VERSION_FULL}+${PBS_TAG}-aarch64-apple-darwin-install_only.tar.gz"
-            
-            download_python "x86_64-apple-darwin" \
-                "https://github.com/astral-sh/python-build-standalone/releases/download/${PBS_TAG}/cpython-${PYTHON_VERSION_FULL}+${PBS_TAG}-x86_64-apple-darwin-install_only.tar.gz"
-            
-            download_ffmpeg_macos "aarch64-apple-darwin"
-            download_ffmpeg_macos "x86_64-apple-darwin"
-        else
-            # Single architecture
-            download_python "$TARGET_ARCH" \
-                "https://github.com/astral-sh/python-build-standalone/releases/download/${PBS_TAG}/cpython-${PYTHON_VERSION_FULL}+${PBS_TAG}-${TARGET_ARCH}-install_only.tar.gz"
-            download_ffmpeg_macos "$TARGET_ARCH"
-        fi
+        echo "CI mode detected: downloading only for $TARGET_ARCH"
+        download_python "$TARGET_ARCH" \
+            "https://github.com/astral-sh/python-build-standalone/releases/download/${PBS_TAG}/cpython-${PYTHON_VERSION_FULL}+${PBS_TAG}-${TARGET_ARCH}-install_only.tar.gz"
+        download_ffmpeg_macos "$TARGET_ARCH"
     else
         # Local development: download for both architectures
         download_python "aarch64-apple-darwin" \
