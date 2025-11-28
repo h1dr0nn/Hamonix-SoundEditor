@@ -30,8 +30,8 @@
     "frontendDist": "../frontend/dist",
     "devUrl": "http://localhost:5173"
   },
-  "productName": "Harmonix SE",
-  "mainBinaryName": "Harmonix SE",
+  "productName": "HarmonixSE",
+  "mainBinaryName": "harmonixse",
   "version": "1.0.0",
   "identifier": "com.h1dr0n.harmonixse",
   "plugins": {},
