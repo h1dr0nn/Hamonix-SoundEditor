@@ -54,7 +54,7 @@
   },
   "productName": "HarmonixSE",
   "mainBinaryName": "harmonixse",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "identifier": "com.h1dr0n.harmonixse",
   "plugins": {},
   "app": {
