@@ -121,29 +121,28 @@ export function FileListPanel({ files = [], onClearAll, onRemoveFile, onReload }
                       </button>
 
                       {previewFileId !== file.id && (
-                        <>
-                          <span
-                            className={cn(
-                              'flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold shadow-sm transition duration-smooth',
-                              statusTone[file.status] || 'bg-white/50 text-slate-700 dark:bg-white/10 dark:text-slate-200',
-                            )}
-                          >
-                            {file.status === 'loading' && (
-                              <FiLoader className="h-3 w-3 animate-spin" />
-                            )}
-                            {statusText[file.status] || 'Unknown'}
-                          </span>
-                          {file.status !== 'processing' && file.status !== 'loading' && onRemoveFile && (
-                            <button
-                              onClick={() => onRemoveFile(file.id || index)}
-                              className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-red-500/10 text-red-600 transition duration-smooth hover:bg-red-500/20 dark:text-red-400"
-                              aria-label="Remove file"
-                              title="Remove file"
-                            >
-                              <FiX className="h-4 w-4" />
-                            </button>
+                        <span
+                          className={cn(
+                            'flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold shadow-sm transition duration-smooth',
+                            statusTone[file.status] || 'bg-white/50 text-slate-700 dark:bg-white/10 dark:text-slate-200',
                           )}
-                        </>
+                        >
+                          {file.status === 'loading' && (
+                            <FiLoader className="h-3 w-3 animate-spin" />
+                          )}
+                          {statusText[file.status] || 'Unknown'}
+                        </span>
+                      )}
+                      
+                      {file.status !== 'processing' && file.status !== 'loading' && onRemoveFile && (
+                        <button
+                          onClick={() => onRemoveFile(file.id || index)}
+                          className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-red-500/10 text-red-600 transition duration-smooth hover:bg-red-500/20 dark:text-red-400"
+                          aria-label="Remove file"
+                          title="Remove file"
+                        >
+                          <FiX className="h-4 w-4" />
+                        </button>
                       )}
                     </div>
                   </div>

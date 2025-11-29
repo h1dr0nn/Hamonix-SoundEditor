@@ -294,8 +294,8 @@ def handle_analysis(data: dict) -> dict:
                 elif "mono" in channel_str:
                     channels = 1
                 else:
-                    # Try to parse "5.1" or similar if needed, but for now assume 2 if unknown
-                    channels = 2
+                    # Try to extract numeric channel count or default to 0 (unknown)
+                    channels = 0
                 
                 # Extract codec from the part before Hz
                 # Stream #0:0: Audio: aac (LC), ...

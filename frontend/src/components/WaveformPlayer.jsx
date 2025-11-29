@@ -34,6 +34,9 @@ export function WaveformPlayer({ file, minimal = false }) {
     wavesurfer.current = ws;
     let isDestroyed = false;
 
+    // Keep track of the object URL to revoke it later
+    const activeUrlRef = useRef(null);
+
     // Load audio file
     const loadAudio = async () => {
       try {
@@ -59,9 +62,13 @@ export function WaveformPlayer({ file, minimal = false }) {
           url = URL.createObjectURL(blob);
         }
 
-        if (isDestroyed) return;
+        if (isDestroyed) {
+          if (url) URL.revokeObjectURL(url);
+          return;
+        }
 
         if (url) {
+          activeUrlRef.current = url;
           console.log('[WaveformPlayer] Loading URL:', url);
           await ws.load(url);
         } else {
@@ -81,8 +88,9 @@ export function WaveformPlayer({ file, minimal = false }) {
       if (isDestroyed) return;
       console.log('[WaveformPlayer] Ready');
       setIsReady(true);
-      ws.play(); // Auto-play on load
-      setIsPlaying(true);
+      // Don't auto-play - let user initiate playback
+      // ws.play(); 
+      // setIsPlaying(true);
     });
 
     ws.on('play', () => setIsPlaying(true));
@@ -98,6 +106,11 @@ export function WaveformPlayer({ file, minimal = false }) {
         console.warn('Error destroying wavesurfer:', e);
       }
       wavesurfer.current = null;
+      
+      if (activeUrlRef.current) {
+        URL.revokeObjectURL(activeUrlRef.current);
+        activeUrlRef.current = null;
+      }
     };
   }, [file]);
 
