@@ -22,6 +22,7 @@ pub struct ConvertPayload {
     pub files: Vec<String>,
     pub format: String,
     pub output: String,
+    pub operation: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
@@ -30,6 +31,8 @@ pub struct BackendResult {
     pub message: String,
     #[serde(default)]
     pub outputs: Vec<String>,
+    #[serde(default)]
+    pub data: Option<Value>,
 }
 
 /// Execute Python backend with JSON input via stdin and stream progress events.
@@ -40,7 +43,7 @@ pub fn execute_python_conversion(
     let resolution = resolve_python(&app)?;
 
     let json_input = serde_json::to_string(&serde_json::json!({
-        "operation": "convert",
+        "operation": payload.operation.clone().unwrap_or_else(|| "convert".to_string()),
         "files": payload.files,
         "format": payload.format,
         "output": payload.output,
@@ -244,6 +247,7 @@ pub fn execute_python_conversion(
                                 .and_then(|raw| raw.as_str())
                                 .unwrap_or_default()
                                 .to_string();
+                            let data = value.get("data").cloned();
 
                             final_result = Some(BackendResult {
                                 status: value
@@ -253,6 +257,7 @@ pub fn execute_python_conversion(
                                     .to_string(),
                                 message,
                                 outputs,
+                                data,
                             });
                         }
                     }

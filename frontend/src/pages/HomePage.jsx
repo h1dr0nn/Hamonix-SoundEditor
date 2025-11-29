@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { FiSettings } from 'react-icons/fi';
 import { listen } from '@tauri-apps/api/event';
+import { invoke } from '@tauri-apps/api/core';
 import { dirname } from '@tauri-apps/api/path';
 import { readFile } from '@tauri-apps/plugin-fs';
 import { open } from '@tauri-apps/plugin-dialog';
@@ -11,7 +12,7 @@ import { OutputFolderChooser } from '../components/OutputFolderChooser';
 import { ProgressIndicator } from '../components/ProgressIndicator';
 import { ToastMessage } from '../components/ToastMessage';
 import { ModeSelector } from '../components/ModeSelector';
-import { MasterControls } from '../components/MasterControls';
+import { MasterControls, PRESETS } from '../components/MasterControls';
 import { TrimControls } from '../components/TrimControls';
 import { ModifyControls } from '../components/ModifyControls';
 import { ErrorModal } from '../components/ErrorModal';
@@ -394,6 +395,62 @@ export function HomePage({
     }
   };
 
+  // Handle Smart Analysis
+  const handleSmartAnalysis = async () => {
+    console.log('[HomePage] Smart Analysis started');
+    if (files.length === 0) {
+      setToast({ type: 'info', message: 'Please add a file to analyze' });
+      return;
+    }
+
+    try {
+      setToast({ type: 'info', message: 'Analyzing audio...' });
+      
+      // Analyze the first file
+      const fileToAnalyze = files[0];
+      console.log('[HomePage] Analyzing file:', fileToAnalyze.path);
+      
+      const payload = {
+        files: [fileToAnalyze.path],
+        format: 'wav', // Dummy
+        output: './', // Dummy
+        operation: 'analyze'
+      };
+
+      const result = await invoke('analyze_audio', { payload });
+      console.log('[HomePage] Analysis result:', result);
+      
+      if (result.status === 'success' && result.data && result.data.length > 0) {
+        const analysis = result.data[0];
+        const suggestion = analysis.suggestion || 'Music';
+        
+        console.log('[HomePage] Suggestion:', suggestion);
+        setMasterPreset(suggestion);
+        
+        // Update parameters based on suggestion
+        if (PRESETS[suggestion]) {
+          setMasterParams({
+            target_lufs: PRESETS[suggestion].target_lufs,
+            apply_compression: PRESETS[suggestion].apply_compression,
+            apply_limiter: PRESETS[suggestion].apply_limiter,
+            output_gain: PRESETS[suggestion].output_gain
+          });
+        }
+
+        setToast({ 
+          type: 'success', 
+          message: `Detected ${suggestion} content. Preset updated.` 
+        });
+      } else {
+        throw new Error(result.message || 'Analysis failed');
+      }
+
+    } catch (error) {
+      console.error('Analysis error:', error);
+      setToast({ type: 'error', message: 'Smart analysis failed' });
+    }
+  };
+
   // Handle process button
   const handleProcess = async () => {
     if (files.length === 0) {
@@ -485,7 +542,7 @@ export function HomePage({
 
         // Handle complete event
         if (payload.event === 'complete') {
-          const { status, message, outputs } = payload;
+          const { status, message, outputs = [] } = payload;
 
           if (status === 'success') {
             setProgress(100);
@@ -496,7 +553,7 @@ export function HomePage({
             setFiles(prev => prev.map((f, i) => ({
               ...f,
               status: 'done',
-              output: outputs[i] || null
+              output: (outputs && outputs[i]) || null
             })));
 
             setToast({ type: 'success', message: message || 'Processing complete!' });
@@ -624,6 +681,7 @@ export function HomePage({
                     onPresetChange={setMasterPreset}
                     parameters={masterParams}
                     onParametersChange={setMasterParams}
+                    onSmartAnalysis={handleSmartAnalysis}
                   />
                 )}
                 {mode === 'clean' && (

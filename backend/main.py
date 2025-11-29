@@ -75,6 +75,8 @@ def main() -> None:
             result = handle_trimming(data)
         elif operation == "modify":
             result = handle_modification(data)
+        elif operation == "analyze":
+            result = handle_analysis(data)
         else:
             print(json.dumps({"status": "error", "message": f"Unknown operation: {operation}"}))
             sys.exit(1)
@@ -231,6 +233,148 @@ def handle_modification(data: dict) -> dict:
             "message": str(e),
             "outputs": []
         }
+
+
+def handle_analysis(data: dict) -> dict:
+    """Handle audio analysis request."""
+    input_paths = [Path(p) for p in data.get("files", data.get("input_paths", []))]
+    if not input_paths:
+        return {"status": "error", "message": "No input files provided", "outputs": []}
+
+    ffmpeg_path = ensure_ffmpeg()
+    if not ffmpeg_path:
+        log_message("python", "FFmpeg not found during analysis")
+        return {"status": "error", "message": "FFmpeg not found", "outputs": []}
+
+    log_message("python", f"Starting analysis with ffmpeg: {ffmpeg_path}")
+    ffprobe_path = ffmpeg_path.parent / ("ffprobe.exe" if sys.platform == "win32" else "ffprobe")
+    
+    # Fallback: try system ffprobe if bundled one not found
+    if not ffprobe_path.exists():
+        ffprobe_path = "ffprobe"
+
+    results = []
+    import subprocess
+    import re
+
+    def analyze_with_ffmpeg(ffmpeg_bin, file_path):
+        """Fallback analysis using ffmpeg stderr output."""
+        try:
+            # Run ffmpeg -i input -f null -
+            # This prints metadata to stderr
+            cmd = [str(ffmpeg_bin), "-i", str(file_path), "-f", "null", "-"]
+            process = subprocess.run(cmd, capture_output=True, text=True)
+            output = process.stderr
+
+            # Parse Duration and bitrate
+            # Duration: 00:03:30.05, start: 0.000000, bitrate: 128 kb/s
+            duration_match = re.search(r"Duration:\s+(\d{2}):(\d{2}):(\d{2}\.\d+)", output)
+            bitrate_match = re.search(r"bitrate:\s+(\d+)\s+kb/s", output)
+            
+            duration = 0.0
+            if duration_match:
+                h, m, s = map(float, duration_match.groups())
+                duration = h * 3600 + m * 60 + s
+            
+            bit_rate = int(bitrate_match.group(1)) * 1000 if bitrate_match else 0
+
+            # Parse Stream info for Audio
+            # Stream #0:0: Audio: aac (LC), 44100 Hz, stereo, fltp, 128 kb/s
+            audio_match = re.search(r"Stream.*Audio:.*,\s+(\d+)\s+Hz,\s+([^,]+),", output)
+            
+            sample_rate = 0
+            channels = 0
+            codec = "unknown"
+            
+            if audio_match:
+                sample_rate = int(audio_match.group(1))
+                channel_str = audio_match.group(2)
+                if "stereo" in channel_str:
+                    channels = 2
+                elif "mono" in channel_str:
+                    channels = 1
+                else:
+                    # Try to extract numeric channel count or default to 0 (unknown)
+                    channels = 0
+                
+                # Extract codec from the part before Hz
+                # Stream #0:0: Audio: aac (LC), ...
+                codec_match = re.search(r"Stream.*Audio:\s+([^,]+),", output)
+                if codec_match:
+                    codec = codec_match.group(1).split()[0]
+
+            return {
+                "file": str(file_path),
+                "duration": duration,
+                "bit_rate": bit_rate,
+                "channels": channels,
+                "sample_rate": sample_rate,
+                "codec": codec
+            }
+        except Exception as e:
+            log_message("python", f"FFmpeg fallback analysis failed: {e}")
+            return None
+
+    for file_path in input_paths:
+        analysis = None
+        
+        # Try ffprobe first
+        try:
+            cmd = [
+                str(ffprobe_path),
+                "-v", "quiet",
+                "-print_format", "json",
+                "-show_format",
+                "-show_streams",
+                str(file_path)
+            ]
+            
+            process = subprocess.run(cmd, capture_output=True, text=True)
+            
+            if process.returncode == 0:
+                probe_data = json.loads(process.stdout)
+                format_info = probe_data.get("format", {})
+                streams = probe_data.get("streams", [])
+                audio_stream = next((s for s in streams if s.get("codec_type") == "audio"), {})
+                
+                analysis = {
+                    "file": str(file_path),
+                    "duration": float(format_info.get("duration", 0)),
+                    "bit_rate": int(format_info.get("bit_rate", 0)),
+                    "channels": int(audio_stream.get("channels", 0)),
+                    "sample_rate": int(audio_stream.get("sample_rate", 0)),
+                    "codec": audio_stream.get("codec_name", "unknown")
+                }
+        except Exception:
+            pass
+        
+        # Fallback to ffmpeg if ffprobe failed
+        if not analysis:
+            analysis = analyze_with_ffmpeg(ffmpeg_path, file_path)
+
+        if analysis:
+            # Simple heuristic for suggestion
+            suggestion = "Music"
+            if analysis["channels"] == 1 or analysis["bit_rate"] < 96000:
+                suggestion = "Voice-over"
+            elif analysis["duration"] > 600: # > 10 mins
+                suggestion = "Podcast"
+                
+            analysis["suggestion"] = suggestion
+            results.append(analysis)
+        else:
+            results.append({
+                "file": str(file_path),
+                "error": "Analysis failed"
+            })
+
+    return {
+        "event": "complete",
+        "status": "success",
+        "message": "Analysis complete",
+        "outputs": [],
+        "data": results
+    }
 
 
 if __name__ == "__main__":
