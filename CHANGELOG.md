@@ -21,3 +21,25 @@ All notable changes to this project will be documented in this file.
 
 - **Audio Cleanup**: Fixed issues where audio would continue playing or duplicate after closing the preview.
 - **Layout**: Resolved layout shift issues when toggling the waveform player.
+
+## [1.0.0] - 2025-11-28
+
+### Audio Processing
+- Multi-format support: MP3, WAV, OGG, FLAC, AAC, WMA, and more  
+- Batch conversion with per-file progress tracking  
+- Audio normalization using predefined mastering presets  
+- Automatic silence trimming (head/tail)  
+- High-performance processing powered by integrated FFmpeg  
+
+### User Interface
+- iOS/macOS-inspired design with blur, glass effects, and rounded corners  
+- System Light/Dark mode detection  
+- Drag-and-drop file import  
+- Real-time conversion status  
+- Configurable output settings, quality levels, and concurrency  
+
+### Technical Highlights
+- Fully standalone (Python + FFmpeg bundled)  
+- Built with Tauri v2 for low resource usage  
+- Cross-platform: macOS (Intel/Apple Silicon), Windows x64, Linux x64  
+- Auto-update ready for future releases  
