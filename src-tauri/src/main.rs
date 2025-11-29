@@ -89,7 +89,8 @@ fn main() {
         })
         .invoke_handler(tauri::generate_handler![
             commands::ping,
-            commands::convert_audio
+            commands::convert_audio,
+            commands::analyze_audio
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")

@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
+import { FiZap } from 'react-icons/fi';
 import { cn } from '../utils/cn';
 
-const PRESETS = {
+export const PRESETS = {
   Music: {
     label: 'Music',
     description: 'Optimized for music tracks',
@@ -28,8 +29,17 @@ const PRESETS = {
   }
 };
 
-export function MasterControls({ preset, onPresetChange, parameters, onParametersChange }) {
+export function MasterControls({ preset, onPresetChange, parameters, onParametersChange, onSmartAnalysis }) {
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+
+  const handleSmartClick = async () => {
+    if (onSmartAnalysis) {
+      setIsAnalyzing(true);
+      await onSmartAnalysis();
+      setIsAnalyzing(false);
+    }
+  };
 
   const handlePresetChange = (newPreset) => {
     onPresetChange(newPreset);
@@ -48,9 +58,20 @@ export function MasterControls({ preset, onPresetChange, parameters, onParameter
     <div className="space-y-4">
       {/* Preset Selector */}
       <div className="space-y-2">
-        <label className="text-xs uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">
-          Master Preset
-        </label>
+        <div className="flex items-center justify-between">
+          <label className="text-xs uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">
+            Master Preset
+          </label>
+          <button
+            onClick={handleSmartClick}
+            disabled={isAnalyzing}
+            className="flex items-center gap-1.5 rounded-full bg-gradient-to-r from-amber-500/10 to-orange-500/10 px-3 py-1 text-xs font-semibold text-amber-600 transition-all hover:from-amber-500/20 hover:to-orange-500/20 disabled:opacity-50 dark:text-amber-400"
+            title="Auto-detect content and suggest preset"
+          >
+            <FiZap className={cn("h-3.5 w-3.5", isAnalyzing && "animate-pulse")} />
+            {isAnalyzing ? 'Auto...' : 'Auto'}
+          </button>
+        </div>
         <div className="grid gap-2">
           {Object.entries(PRESETS).map(([key, config]) => (
             <button

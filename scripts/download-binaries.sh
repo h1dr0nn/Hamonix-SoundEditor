@@ -68,50 +68,58 @@ download_python() {
     echo -e "${GREEN}✓ Python downloaded: python-${target}${NC}"
 }
 
-# Function to download and extract FFmpeg
+# Function to download and extract FFmpeg (and ffprobe)
 download_ffmpeg_macos() {
     local target=$1
-    local output_name="ffmpeg-${target}"
+    local output_name_ffmpeg="ffmpeg-${target}"
+    local output_name_ffprobe="ffprobe-${target}"
     
-    echo -e "${YELLOW}Downloading FFmpeg for macOS (${target})...${NC}"
+    echo -e "${YELLOW}Downloading FFmpeg & FFprobe for macOS (${target})...${NC}"
     
-    if [ -f "$BINARIES_DIR/$output_name" ]; then
+    # 1. FFmpeg
+    if [ ! -f "$BINARIES_DIR/$output_name_ffmpeg" ]; then
+        FFMPEG_URL="https://evermeet.cx/ffmpeg/getrelease/ffmpeg/zip"
+        TEMP_DIR=$(mktemp -d)
+        cd "$TEMP_DIR"
+        echo "  Downloading FFmpeg from: $FFMPEG_URL"
+        curl -L -o ffmpeg.zip "$FFMPEG_URL"
+        unzip -q ffmpeg.zip
+        cp ffmpeg "$BINARIES_DIR/$output_name_ffmpeg"
+        chmod +x "$BINARIES_DIR/$output_name_ffmpeg"
+        cd - > /dev/null
+        rm -rf "$TEMP_DIR"
+        echo -e "${GREEN}✓ FFmpeg downloaded: $output_name_ffmpeg${NC}"
+    else
         echo "  FFmpeg already exists, skipping..."
-        return
     fi
-    
-    # Use official FFmpeg static builds
-    FFMPEG_URL="https://evermeet.cx/ffmpeg/getrelease/ffmpeg/zip"
-    
-    # Download to temp directory
-    TEMP_DIR=$(mktemp -d)
-    cd "$TEMP_DIR"
-    
-    echo "  Downloading from: $FFMPEG_URL"
-    curl -L -o ffmpeg.zip "$FFMPEG_URL"
-    
-    # Extract
-    unzip -q ffmpeg.zip
-    
-    # Copy to binaries directory with target-triple naming
-    cp ffmpeg "$BINARIES_DIR/$output_name"
-    chmod +x "$BINARIES_DIR/$output_name"
-    
-    # Cleanup
-    cd - > /dev/null
-    rm -rf "$TEMP_DIR"
-    
-    echo -e "${GREEN}✓ FFmpeg downloaded: $output_name${NC}"
+
+    # 2. FFprobe
+    if [ ! -f "$BINARIES_DIR/$output_name_ffprobe" ]; then
+        FFPROBE_URL="https://evermeet.cx/ffmpeg/getrelease/ffprobe/zip"
+        TEMP_DIR=$(mktemp -d)
+        cd "$TEMP_DIR"
+        echo "  Downloading FFprobe from: $FFPROBE_URL"
+        curl -L -o ffprobe.zip "$FFPROBE_URL"
+        unzip -q ffprobe.zip
+        cp ffprobe "$BINARIES_DIR/$output_name_ffprobe"
+        chmod +x "$BINARIES_DIR/$output_name_ffprobe"
+        cd - > /dev/null
+        rm -rf "$TEMP_DIR"
+        echo -e "${GREEN}✓ FFprobe downloaded: $output_name_ffprobe${NC}"
+    else
+        echo "  FFprobe already exists, skipping..."
+    fi
 }
 
 download_ffmpeg_windows() {
     local target=$1
-    local output_name="ffmpeg-${target}.exe"
+    local output_name_ffmpeg="ffmpeg-${target}.exe"
+    local output_name_ffprobe="ffprobe-${target}.exe"
     
-    echo -e "${YELLOW}Downloading FFmpeg for Windows (${target})...${NC}"
+    echo -e "${YELLOW}Downloading FFmpeg & FFprobe for Windows (${target})...${NC}"
     
-    if [ -f "$BINARIES_DIR/$output_name" ]; then
-        echo "  FFmpeg already exists, skipping..."
+    if [ -f "$BINARIES_DIR/$output_name_ffmpeg" ] && [ -f "$BINARIES_DIR/$output_name_ffprobe" ]; then
+        echo "  Binaries already exist, skipping..."
         return
     fi
     
@@ -126,14 +134,17 @@ download_ffmpeg_windows() {
     
     unzip -q ffmpeg.zip
     
-    # Find and copy the ffmpeg.exe
-    find . -name "ffmpeg.exe" -exec cp {} "$BINARIES_DIR/$output_name" \;
+    # Find and copy ffmpeg.exe and ffprobe.exe
+    find . -name "ffmpeg.exe" -exec cp {} "$BINARIES_DIR/$output_name_ffmpeg" \;
+    find . -name "ffprobe.exe" -exec cp {} "$BINARIES_DIR/$output_name_ffprobe" \;
     
     cd - > /dev/null
     rm -rf "$TEMP_DIR"
     
-    echo -e "${GREEN}✓ FFmpeg downloaded: $output_name${NC}"
+    echo -e "${GREEN}✓ FFmpeg & FFprobe downloaded for Windows${NC}"
 }
+
+# ... (rest of script)
 
 # Main download logic
 if [[ "$PLATFORM" == "Darwin" ]]; then
@@ -181,7 +192,9 @@ elif [[ "$PLATFORM" == "Linux" ]]; then
     echo -e "${YELLOW}Downloading FFmpeg for Linux (x86_64)...${NC}"
     
     FFMPEG_LINUX="ffmpeg-x86_64-unknown-linux-gnu"
-    if [ ! -f "$BINARIES_DIR/$FFMPEG_LINUX" ]; then
+    FFPROBE_LINUX="ffprobe-x86_64-unknown-linux-gnu"
+    
+    if [ ! -f "$BINARIES_DIR/$FFMPEG_LINUX" ] || [ ! -f "$BINARIES_DIR/$FFPROBE_LINUX" ]; then
         # Use static FFmpeg build from johnvansickle
         FFMPEG_URL="https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz"
         
@@ -195,14 +208,17 @@ elif [[ "$PLATFORM" == "Linux" ]]; then
         
         # Find and copy ffmpeg binary
         find . -name "ffmpeg" -type f -executable -exec cp {} "$BINARIES_DIR/$FFMPEG_LINUX" \;
+        find . -name "ffprobe" -type f -executable -exec cp {} "$BINARIES_DIR/$FFPROBE_LINUX" \;
+        
         chmod +x "$BINARIES_DIR/$FFMPEG_LINUX"
+        chmod +x "$BINARIES_DIR/$FFPROBE_LINUX"
         
         cd - > /dev/null
         rm -rf "$TEMP_DIR"
         
-        echo -e "${GREEN}✓ FFmpeg downloaded: $FFMPEG_LINUX${NC}"
+        echo -e "${GREEN}✓ FFmpeg & FFprobe downloaded for Linux${NC}"
     else
-        echo "  FFmpeg already exists, skipping..."
+        echo "  FFmpeg/FFprobe already exists, skipping..."
     fi
     
 elif [[ "$PLATFORM" == "MINGW"* ]] || [[ "$PLATFORM" == "MSYS"* ]]; then
