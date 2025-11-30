@@ -18,6 +18,7 @@ const DEFAULT_SETTINGS = {
   // Appearance
   accentColor: '#007AFF',
   fontSize: 'medium',
+  language: 'en',
 };
 
 export function useSettings() {

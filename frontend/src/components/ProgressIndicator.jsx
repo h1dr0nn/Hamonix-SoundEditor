@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { FiCheck } from 'react-icons/fi';
+import { useTranslation } from '../utils/i18n';
 
 // Animated number component for smooth transitions
 function AnimatedNumber({ value }) {
@@ -44,6 +45,8 @@ function AnimatedNumber({ value }) {
 }
 
 export function ProgressIndicator({ progress, status, currentFile }) {
+  const { t } = useTranslation();
+  
   // Calculate progress from status text if it contains "Processing X/Y"
   let progressPercent = progress || 0;
   
@@ -80,9 +83,9 @@ export function ProgressIndicator({ progress, status, currentFile }) {
     <div className="space-y-3 rounded-card border border-slate-200 bg-white p-5 shadow-soft transition duration-smooth dark:border-white/10 dark:bg-white/10">
       <div className="flex items-center justify-between">
         <div>
-          <p className="text-xs uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">Progress</p>
+          <p className="text-xs uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">{t('progressLabel')}</p>
           <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
-            {status || 'Idle'}
+            {status || t('statusIdle')}
           </h3>
         </div>
         <span 
@@ -102,7 +105,7 @@ export function ProgressIndicator({ progress, status, currentFile }) {
       {currentFile && (
         <div className="min-w-0">
           <p className="truncate text-xs text-slate-600 dark:text-slate-300" title={currentFile}>
-            Processing: {currentFile.split(/[/\\]/).pop()}
+            {t('processingFile')} {currentFile.split(/[/\\]/).pop()}
           </p>
         </div>
       )}
@@ -137,9 +140,9 @@ export function ProgressIndicator({ progress, status, currentFile }) {
           ? 'font-semibold text-emerald-600 dark:text-emerald-400' 
           : 'text-slate-500 dark:text-slate-400'
       }`}>
-        {progressPercent === 0 && 'Ready to process'}
-        {isProcessing && 'Processing files...'}
-        {isComplete && '✓ Complete!'}
+        {progressPercent === 0 && t('readyToProcess')}
+        {isProcessing && t('processingFiles')}
+        {isComplete && t('complete')}
       </p>
     </div>
   );

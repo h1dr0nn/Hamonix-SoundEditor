@@ -119,7 +119,7 @@ Tauri (App Shell)
 
 **Status: 🚧 In Progress**
 
-- [ ] Multi-language (EN/VI).
+- [x] Multi-language (EN/VI/JP/KR/CN/ES).
 - [ ] Auto-updater.
 - [ ] Settings persistence.
 - [ ] Crash logger (local only).

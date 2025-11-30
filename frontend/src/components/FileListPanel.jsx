@@ -5,6 +5,8 @@ import { designTokens } from '../utils/theme';
 import { WaveformPlayer } from './WaveformPlayer';
 import { formatBitrate, formatChannels, formatSampleRate, formatCodec } from '../utils/metadataUtils';
 
+import { useTranslation } from '../utils/i18n';
+
 const statusTone = {
   loading: 'bg-blue-500/10 text-blue-600 dark:bg-blue-400/15 dark:text-blue-300',
   ready: 'bg-white/60 text-slate-800 dark:bg-white/10 dark:text-slate-100',
@@ -14,16 +16,20 @@ const statusTone = {
   error: 'bg-red-500/15 text-red-600 dark:bg-red-400/15 dark:text-red-200',
 };
 
-const statusText = {
-  loading: 'Loading',
-  ready: 'Ready',
-  pending: 'Pending',
-  processing: 'Processing',
-  done: 'Done',
-  error: 'Error',
+const getStatusText = (status, t) => {
+  const map = {
+    loading: t('statusLoading'),
+    ready: t('statusReady'),
+    pending: t('statusPending'),
+    processing: t('statusProcessing'),
+    done: t('statusDone'),
+    error: t('statusError'),
+  };
+  return map[status] || status;
 };
 
 export function FileListPanel({ files = [], onClearAll, onRemoveFile, onReload }) {
+  const { t } = useTranslation();
   const [isReloading, setIsReloading] = useState(false);
   const [previewFileId, setPreviewFileId] = useState(null);
 
@@ -44,8 +50,8 @@ export function FileListPanel({ files = [], onClearAll, onRemoveFile, onReload }
     >
       <div className="mb-4 flex flex-shrink-0 items-center justify-between gap-3">
         <div>
-          <p className="text-xs uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">Session</p>
-          <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Files in queue</h3>
+          <p className="text-xs uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">{t('session')}</p>
+          <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">{t('filesInQueue')}</h3>
         </div>
         {files.length > 0 && (
           <div className="flex items-center gap-2">
@@ -65,7 +71,7 @@ export function FileListPanel({ files = [], onClearAll, onRemoveFile, onReload }
               className="inline-flex h-[34px] items-center gap-2 rounded-full bg-red-500/10 px-4 text-xs font-semibold text-red-600 shadow-md transition duration-smooth hover:-translate-y-[1px] hover:bg-red-500/20 hover:shadow-lg dark:bg-red-500/20 dark:text-red-400"
             >
               <FiTrash2 className="h-3.5 w-3.5" />
-              Clear All
+              {t('clearAll')}
             </button>
           </div>
         )}
@@ -74,7 +80,7 @@ export function FileListPanel({ files = [], onClearAll, onRemoveFile, onReload }
       <div className="flex h-[244px] flex-col overflow-hidden rounded-2xl border border-white/40 bg-white/30 p-3 dark:border-white/5 dark:bg-white/5">
         {files.length === 0 ? (
           <div className="flex h-full items-center justify-center rounded-xl bg-white/60 px-4 py-3 text-sm text-slate-600 shadow-inner dark:bg-white/5 dark:text-slate-300">
-            <span>No files yet. Drop audio here to start.</span>
+            <span>{t('noFilesYet')}</span>
           </div>
         ) : (
           <div className="h-[220px] space-y-2 overflow-y-auto pr-1 scrollbar-hide">
@@ -138,7 +144,7 @@ export function FileListPanel({ files = [], onClearAll, onRemoveFile, onReload }
                           {file.status === 'loading' && (
                             <FiLoader className="h-3 w-3 animate-spin" />
                           )}
-                          {statusText[file.status] || 'Unknown'}
+                          {getStatusText(file.status, t)}
                         </span>
                       )}
                       
