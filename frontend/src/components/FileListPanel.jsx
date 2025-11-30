@@ -3,6 +3,7 @@ import { FiTrash2, FiX, FiLoader, FiRefreshCw, FiMusic, FiSquare } from 'react-i
 import { cn } from '../utils/cn';
 import { designTokens } from '../utils/theme';
 import { WaveformPlayer } from './WaveformPlayer';
+import { formatBitrate, formatChannels, formatSampleRate, formatCodec } from '../utils/metadataUtils';
 
 const statusTone = {
   loading: 'bg-blue-500/10 text-blue-600 dark:bg-blue-400/15 dark:text-blue-300',
@@ -35,13 +36,13 @@ export function FileListPanel({ files = [], onClearAll, onRemoveFile, onReload }
 
   return (
     <div
-      className="glass-surface relative overflow-hidden rounded-card border border-slate-200 bg-white p-4 shadow-soft transition duration-smooth dark:border-white/10 dark:bg-white/5"
+      className="glass-surface relative flex flex-col rounded-card border border-slate-200 bg-white p-4 shadow-soft transition duration-smooth dark:border-white/10 dark:bg-white/5"
       style={{
         backdropFilter: `blur(${designTokens.blur})`,
         WebkitBackdropFilter: `blur(${designTokens.blur})`,
       }}
     >
-      <div className="mb-4 flex items-center justify-between gap-3">
+      <div className="mb-4 flex flex-shrink-0 items-center justify-between gap-3">
         <div>
           <p className="text-xs uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">Session</p>
           <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Files in queue</h3>
@@ -70,18 +71,22 @@ export function FileListPanel({ files = [], onClearAll, onRemoveFile, onReload }
         )}
       </div>
 
-      <div className="space-y-3 overflow-hidden rounded-2xl border border-white/40 bg-white/30 p-3 dark:border-white/5 dark:bg-white/5">
+      <div className="flex h-[244px] flex-col overflow-hidden rounded-2xl border border-white/40 bg-white/30 p-3 dark:border-white/5 dark:bg-white/5">
         {files.length === 0 ? (
-          <div className="flex items-center justify-between rounded-xl bg-white/60 px-4 py-3 text-sm text-slate-600 shadow-inner dark:bg-white/5 dark:text-slate-300">
+          <div className="flex h-full items-center justify-center rounded-xl bg-white/60 px-4 py-3 text-sm text-slate-600 shadow-inner dark:bg-white/5 dark:text-slate-300">
             <span>No files yet. Drop audio here to start.</span>
-            <span className="rounded-full bg-accent/10 px-3 py-1 text-xs font-semibold text-accent">Idle</span>
           </div>
         ) : (
-          <div className="max-h-80 space-y-2 overflow-y-auto pr-1">
+          <div className="h-[220px] space-y-2 overflow-y-auto pr-1 scrollbar-hide">
             {files.map((file, index) => (
               <div key={file.id || index} className="space-y-2">
                 <article
-                  className="group flex items-center gap-3 rounded-xl border border-white/60 bg-white/70 px-3 py-2.5 text-sm text-slate-800 shadow-sm transition duration-smooth hover:-translate-y-[1px] hover:shadow-lg dark:border-white/5 dark:bg-white/10 dark:text-slate-50"
+                  className={cn(
+                    "group flex items-center gap-3 rounded-xl border border-white/60 bg-white/70 px-3 py-2.5 text-sm text-slate-800 shadow-sm transition duration-smooth hover:-translate-y-[1px] hover:shadow-lg dark:border-white/5 dark:bg-white/10 dark:text-slate-50",
+                    file.status === 'processing' && "ring-2 ring-accent/30 animate-pulse",
+                    file.status === 'done' && "scale-[1.02]",
+                    file.status === 'error' && "animate-shake"
+                  )}
                 >
                   <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-accent/90 to-accent/70 shadow-sm">
                     <span className="text-[10px] font-bold uppercase tracking-tight text-white">{file.format}</span>
@@ -98,8 +103,10 @@ export function FileListPanel({ files = [], onClearAll, onRemoveFile, onReload }
                       ) : (
                         <>
                           <p className="truncate text-sm font-semibold leading-5" title={file.name}>{file.name}</p>
-                          <p className="text-xs text-slate-500 dark:text-slate-400">
-                            {file.duration === '00:00' ? '--' : file.duration} • {file.size === '0 B' ? '--' : file.size}
+                          <p className="text-[10px] text-slate-500 dark:text-slate-400">
+                            {file.duration === '00:00' ? '--' : file.duration}
+                            {file.bitrate && <> • {formatBitrate(file.bitrate)}</>}
+                            {' • '}{file.size === '0 B' ? '--' : file.size}
                           </p>
                         </>
                       )}
@@ -120,6 +127,7 @@ export function FileListPanel({ files = [], onClearAll, onRemoveFile, onReload }
                         {previewFileId === file.id ? <FiSquare className="h-3.5 w-3.5 fill-current" /> : <FiMusic className="h-4 w-4" />}
                       </button>
 
+                      {/* Status Badge - only show when NOT in preview mode */}
                       {previewFileId !== file.id && (
                         <span
                           className={cn(
@@ -134,7 +142,8 @@ export function FileListPanel({ files = [], onClearAll, onRemoveFile, onReload }
                         </span>
                       )}
                       
-                      {file.status !== 'processing' && file.status !== 'loading' && onRemoveFile && (
+                      {/* Remove Button - hidden during processing/loading */}
+                      {previewFileId !== file.id && file.status !== 'processing' && file.status !== 'loading' && onRemoveFile && (
                         <button
                           onClick={() => onRemoveFile(file.id || index)}
                           className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-red-500/10 text-red-600 transition duration-smooth hover:bg-red-500/20 dark:text-red-400"

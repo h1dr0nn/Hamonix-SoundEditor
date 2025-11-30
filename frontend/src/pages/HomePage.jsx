@@ -242,10 +242,36 @@ export function HomePage({
               }
             }
 
-            // Update with duration and mark as ready
+            // Load metadata in background (non-blocking)
+            let metadata = {};
+            try {
+              const analysisPayload = {
+                files: [immediateFile.path],
+                format: 'wav',
+                output: './',
+                operation: 'analyze'
+              };
+              
+              const result = await invoke('analyze_audio', { payload: analysisPayload });
+              
+              if (result.status === 'success' && result.data && result.data.length > 0) {
+                const analysis = result.data[0];
+                metadata = {
+                  bitrate: analysis.bit_rate,
+                  channels: analysis.channels,
+                  sampleRate: analysis.sample_rate,
+                  codec: analysis.codec_name || analysis.codec
+                };
+              }
+            } catch (error) {
+              // Metadata is optional - don't fail if analysis fails
+              console.warn('Metadata analysis failed for', immediateFile.name, error);
+            }
+
+            // Update with duration, metadata and mark as ready
             setFiles(prev => prev.map(f => 
               f.id === immediateFile.id 
-                ? { ...f, duration, status: 'ready' }
+                ? { ...f, duration, ...metadata, status: 'ready' }
                 : f
             ));
           } catch (error) {
@@ -526,12 +552,17 @@ export function HomePage({
       unlisten = await listen('conversion-progress', (event) => {
         const payload = event.payload;
 
+        // IGNORE analysis events - they're for metadata only, not conversion progress
+        if (payload.operation_type === 'analyze') {
+          console.log('[HomePage] Ignoring analysis event');
+          return;
+        }
+
         // Handle progress events
         if (payload.event === 'progress') {
           const { index, total, file, status } = payload;
           
           setCurrentFile(file);
-          setProgress((index / total) * 100);
           setProcessingStatus(`Processing ${index}/${total}`);
 
           // Update individual file status
@@ -545,8 +576,8 @@ export function HomePage({
           const { status, message, outputs = [] } = payload;
 
           if (status === 'success') {
-            setProgress(100);
             setProcessingStatus('Complete');
+            setProgress(100);
             setCurrentFile('');
             
             // Mark all files as done
@@ -609,12 +640,12 @@ export function HomePage({
 
   return (
     <div
-      className={`min-h-screen bg-gradient-to-br ${themeClasses.pageBackground} px-4 py-10 text-slate-900 transition duration-smooth dark:text-slate-100`}
+      className={`min-h-screen bg-gradient-to-br ${themeClasses.pageBackground} text-slate-900 transition duration-smooth dark:text-slate-100`}
       style={{ fontFamily: designTokens.font }}
     >
-      <div className="mx-auto flex max-w-6xl flex-col gap-6">
+      <div className="mx-auto flex min-h-screen w-full flex-col gap-4 p-4 lg:gap-6 lg:p-6">
         {/* Header */}
-        <header className={`flex flex-col gap-4 rounded-card border ${themeClasses.card} p-5 shadow-soft backdrop-blur-[32px] transition duration-smooth`}>
+        <header className={`flex flex-col gap-4 rounded-card border ${themeClasses.card} p-4 shadow-soft backdrop-blur-[32px] transition duration-smooth lg:p-5`}>
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div>
               <p className="text-xs uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">Harmonix SE</p>
@@ -631,11 +662,10 @@ export function HomePage({
           </div>
         </header>
 
-        <div className="grid gap-6 lg:grid-cols-[280px,1fr]">
+        <div className="flex flex-1 gap-6">
           {/* Sidebar */}
-          <aside className={`glass-surface relative overflow-hidden rounded-card border ${themeClasses.card} p-5 shadow-soft transition duration-smooth`}>
-            <div className="absolute inset-0 bg-gradient-to-b from-white/70 via-white/30 to-white/0 opacity-80 dark:from-white/10 dark:via-white/5 dark:to-transparent" />
-            <div className="relative space-y-6">
+          <aside className={`glass-surface scrollbar-hide hidden w-[280px] flex-shrink-0 flex-col rounded-card border ${themeClasses.card} p-5 shadow-soft transition duration-smooth lg:flex`}>
+            <div className="relative flex flex-1 flex-col space-y-6">
               {/* Mode Selector in Sidebar */}
               <ModeSelector selected={mode} onChange={setMode} />
               
@@ -649,6 +679,7 @@ export function HomePage({
                   {mode === 'modify' && 'Change speed, pitch, and cut audio'}
                 </p>
               </div>
+              
               <div className={`space-y-3 rounded-2xl border ${themeClasses.surface} p-4`}>
                 <div className="flex items-center justify-between text-sm font-semibold text-slate-800 dark:text-slate-100">
                   <span>Files</span>
@@ -667,11 +698,13 @@ export function HomePage({
           </aside>
 
           {/* Main Content */}
-          <main className="space-y-6">
+          <main className="scrollbar-hide flex flex-1 flex-col gap-4 lg:gap-6">
             {/* Drag & Drop + Controls */}
-            <section className={`grid gap-4 rounded-card border ${themeClasses.card} p-5 shadow-soft backdrop-blur-[32px] transition duration-smooth lg:grid-cols-[1.5fr,1fr]`}>
-              <DragDropArea onFilesAdded={handleFilesAdded} />
-              <div className={`flex flex-col justify-between gap-6 rounded-card border ${themeClasses.surface} p-4`}>
+            <section className={`flex flex-col gap-4 rounded-card border ${themeClasses.card} p-5 shadow-soft backdrop-blur-[32px] transition duration-smooth lg:flex-row`}>
+              <div className="lg:min-w-[500px] lg:max-w-[600px] lg:flex-1">
+                <DragDropArea onFilesAdded={handleFilesAdded} />
+              </div>
+              <div className={`flex h-full flex-1 flex-col justify-between gap-6 rounded-card border ${themeClasses.surface} p-4`}>
                 {mode === 'format' && (
                   <FormatSelector formats={formatOptions} selected={selectedFormat} onSelect={setSelectedFormat} />
                 )}
@@ -712,14 +745,16 @@ export function HomePage({
             </section>
 
             {/* File List + Progress */}
-            <section className={`grid gap-4 rounded-card border ${themeClasses.card} p-5 shadow-soft backdrop-blur-[32px] transition duration-smooth lg:grid-cols-[1.5fr,1fr]`}>
-              <FileListPanel 
-                files={files} 
-                onClearAll={handleClearAll} 
-                onRemoveFile={handleRemoveFile}
-                onReload={handleReload}
-              />
-              <div className="flex min-w-0 flex-col gap-4">
+            <section className={`flex flex-1 flex-col gap-4 rounded-card border ${themeClasses.card} p-5 shadow-soft backdrop-blur-[32px] transition duration-smooth lg:flex-row`}>
+              <div className="flex h-full flex-col overflow-hidden lg:min-w-[500px] lg:max-w-[600px] lg:flex-1">
+                <FileListPanel 
+                  files={files} 
+                  onClearAll={handleClearAll} 
+                  onRemoveFile={handleRemoveFile}
+                  onReload={handleReload}
+                />
+              </div>
+              <div className="flex flex-1 min-w-0 flex-col gap-4">
                 <ProgressIndicator 
                   progress={progress} 
                   status={processingStatus}

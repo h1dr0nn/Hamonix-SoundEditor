@@ -110,7 +110,7 @@ export function DragDropArea({ onFilesAdded }) {
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
       className={cn(
-        'glass-surface relative flex flex-col items-center justify-center overflow-hidden rounded-card border-2 bg-white p-10 shadow-soft transition-all duration-smooth dark:bg-white/10',
+        'glass-surface relative flex h-full flex-col items-center justify-center overflow-hidden rounded-card border-2 bg-white p-10 shadow-soft transition-all duration-smooth dark:bg-white/10',
         isDragging
           ? 'border-accent bg-accent/10 shadow-xl dark:bg-accent/20 scale-[1.02]'
           : 'border-slate-200 hover:border-slate-300 hover:shadow-xl dark:border-white/10 dark:hover:border-white/20'

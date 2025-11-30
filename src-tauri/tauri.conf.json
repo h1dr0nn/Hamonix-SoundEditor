@@ -21,7 +21,8 @@
       "icons/icon.png"
     ],
     "resources": [
-      "binaries/**/*"
+      "binaries/**/*",
+      "../backend/**/*"
     ],
     "macOS": {
       "entitlements": null,
@@ -64,6 +65,8 @@
         "title": "Harmonix SE",
         "width": 1200,
         "height": 800,
+        "minWidth": 900,
+        "minHeight": 650,
         "resizable": true,
         "dragDropEnabled": false,
         "useHttpsScheme": true
