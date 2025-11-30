@@ -47,16 +47,6 @@ Download the latest version for your platform:
 
 ---
 
-## ⚙️ Settings
-
-Access via the gear icon. Customize:
-
-- Default format, output location, notifications
-- Concurrent processing, file size limits
-- Theme, language, accent color, font size
-
----
-
 ## � Auto-Updates
 
 Harmonix SE can check for updates automatically:
@@ -66,15 +56,6 @@ Harmonix SE can check for updates automatically:
 3. If an update is available, you'll be prompted to install
 
 Updates are downloaded and installed seamlessly with minimal disruption.
-
----
-
-## 🎯 Use Cases
-
-- **Musicians** - Convert studio formats, master tracks, normalize albums
-- **Podcasters** - Remove silence, optimize audio, ensure consistent volume
-- **Content Creators** - Quick conversion, cleanup, batch processing
-- **Audio Engineers** - LUFS normalization, precision trimming
 
 ---
 
