@@ -1,199 +1,261 @@
-# Harmonix SE
+# 🎵 Harmonix SE
 
-A modern desktop audio converter with an iOS/macOS-inspired UI, built with **Tauri, React, and Python**.
+**Professional audio converter with an elegant, modern interface**
 
-![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows-blue)
+Harmonix SE is a powerful desktop application for converting, enhancing, and processing audio files. Built with cutting-edge technology and designed with a beautiful macOS/iOS-inspired interface.
+
+![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
+![Version](https://img.shields.io/badge/version-1.0.2-brightgreen)
+
+---
 
 ## ✨ Features
 
-- **Beautiful Interface**: iOS/macOS-style UI with glassmorphism, blur effects, and smooth animations
-- **Drag & Drop**: Simply drag audio files into the app
-- **Multiple Formats**: Convert between MP3, WAV, OGG, FLAC, AAC, WMA, and more
-- **Batch Processing**: Convert multiple files simultaneously
-- **Real-time Progress**: See conversion progress for each file
-- **Light/Dark Mode**: Automatic theme support matching your system
-- **Audio Mastering**: Normalize and enhance audio quality with presets
-- **Silence Trimming**: Automatically remove silence from the beginning and end of audio files
+### 🔄 Format Conversion
 
-## 🏗️ Architecture
+Convert audio files between popular formats:
 
-```
-Tauri Desktop App
-├── Frontend (React + Tailwind)    → UI Layer
-├── Tauri (Rust)                   → Bridge Layer
-└── Backend (Python + FFmpeg)      → Processing Logic
-```
+- **MP3** - Universal compatibility
+- **AAC/M4A** - High quality, small size
+- **FLAC** - Lossless quality
+- **WAV** - Professional uncompressed
+- **OGG** - Open source alternative
 
-## 🚀 Quick Start
+### 🎚️ Audio Enhancement
 
-### Prerequisites
+- **Smart Analysis** - Automatically detect content type (Music, Podcast, Voice-over)
+- **Audio Mastering** - Professional-grade normalization and compression
+- **Preset System** - Optimized settings for different content types
+- **LUFS Normalization** - Industry-standard loudness management
 
-- **Node.js** 18+ and npm
-- **Rust** (for building Tauri)
-- **Python** 3.9+
-- **FFmpeg** (will be bundled automatically in production builds)
+### ✂️ Audio Cleanup
+
+- **Silence Trimming** - Remove quiet sections from beginning and end
+- **Customizable Threshold** - Fine-tune detection sensitivity
+- **Padding Control** - Add buffer space around trimmed audio
+
+### 🛠️ Audio Modification
+
+- **Speed Adjustment** - Change playback speed (0.5x - 2.0x)
+- **Pitch Shifting** - Adjust pitch without changing tempo
+- **Precision Cutting** - Trim exact sections with visual controls
+
+### 🎨 Beautiful Interface
+
+- **Modern Design** - Glassmorphism effects with blur and transparency
+- **Light & Dark Modes** - Automatic theme switching
+- **Drag & Drop** - Simple, intuitive file handling
+- **Real-time Progress** - Watch your files convert live
+- **Waveform Preview** - Visual audio playback before converting
+- **Multi-language** - English, Vietnamese, Japanese, Korean, Chinese, Spanish, and more
+
+---
+
+## 📥 Download
+
+### Latest Release: v1.0.2
+
+Download the latest version for your platform:
+
+- **macOS** (Intel & Apple Silicon)
+- **Windows** (64-bit)
+- **Linux** (64-bit)
+
+👉 [Download from Releases](https://github.com/h1dr0nn/SoundConverterApp/releases/latest)
 
 ### Installation
 
-1. **Clone the repository**:
+**macOS:**
 
-   ```bash
-   git clone https://github.com/your-username/SoundConverterApp.git
-   cd SoundConverterApp
-   ```
+1. Download the `.dmg` file
+2. Open it and drag Harmonix SE to Applications
+3. Launch from Applications folder
 
-2. **Install frontend dependencies**:
+**Windows:**
 
-   ```bash
-   cd frontend
-   npm install
-   ```
+1. Download the `.msi` or `.exe` installer
+2. Run the installer and follow the prompts
+3. Launch from Start Menu or Desktop
 
-3. **Set up Python virtual environment**:
+**Linux:**
 
-   ```bash
-   # Create virtual environment (one-time setup)
-   python3 -m venv .venv
+1. Download the `.AppImage` or `.deb` file
+2. Make it executable: `chmod +x Harmonix-SE.AppImage`
+3. Run the application
 
-   # Activate it
-   source .venv/bin/activate  # macOS/Linux
-   # Or on Windows: .venv\Scripts\activate
-   ```
+---
 
-4. **Install backend dependencies**:
+## 🚀 Getting Started
 
-   ```bash
-   pip install -r requirements.txt
-   ```
+### Basic Usage
 
-   > **Note**: Always activate the virtual environment (`source .venv/bin/activate`) before running the backend or tests.
+1. **Add Files**
 
-### Development
+   - Drag and drop audio files into the app
+   - Or click to browse and select files
+   - Supports multiple files at once
 
-Run the app in development mode:
+2. **Choose Operation Mode**
 
-```bash
-cd frontend
-npm run tauri dev
-```
+   - **Format** - Convert to different format
+   - **Enhance** - Improve audio quality with mastering
+   - **Clean** - Remove silence from edges
+   - **Modify** - Adjust speed, pitch, or trim sections
 
-This will:
+3. **Select Output**
 
-- Start the Vite development server for React
-- Launch the Tauri window
-- Hot-reload on code changes
+   - Choose where to save converted files
+   - Files are saved with original name + format extension
 
-### Building for Production
+4. **Process**
+   - Click the "Process Files" button
+   - Watch real-time progress for each file
+   - Done! Files are ready in your output folder
 
-Build the app for your platform:
+### Smart Analysis
 
-```bash
-cd frontend
-npm run tauri build
-```
+For audio enhancement:
 
-The bundled app will be in `src-tauri/target/release/bundle/`.
+1. Add your audio files
+2. Switch to **Enhance** mode
+3. Click **Smart Analysis**
+4. The app automatically detects content type and applies optimal settings
+5. Review the suggested preset or adjust manually
+6. Process your files
 
-### Automated Releases (CI/CD)
+---
 
-The project includes automated multi-platform builds via GitHub Actions:
+## ⚙️ Settings
 
-```bash
-# 1. Merge to build branch
-git checkout build
-git merge main
-git push origin build
+Access settings via the gear icon in the top-right corner.
 
-# 2. Create and push a version tag to trigger release build
-git checkout main
-git tag v1.0.0
-git push origin v1.0.0
-```
+### Configuration
 
-This will automatically build from the `build` branch for:
+- **Default Format** - Choose your preferred output format
+- **Output Location** - Set where files are saved
+- **Auto-clear** - Remove completed files automatically
+- **Notifications** - Get desktop notifications when done
 
-- macOS (Apple Silicon + Intel)
-- Windows (x64)
-- Linux (x64)
+### Advanced
 
-See [`.github/RELEASE.md`](./.github/RELEASE.md) for detailed release instructions.
+- **Concurrent Processing** - Process multiple files simultaneously
+- **File Size Limit** - Set maximum file size
+- **Debug Logging** - Enable detailed logs for troubleshooting
 
-## 🧪 Testing
+### Appearance
 
-### Backend Tests
+- **Theme** - Light or Dark mode (auto-sync with system)
+- **Language** - Choose from 11+ supported languages
+- **Accent Color** - Customize the app's color scheme
+- **Font Size** - Adjust text size for comfort
 
-Run Python unit tests:
+---
 
-```bash
-cd backend
-python -m pytest
-```
+## � Auto-Updates
 
-### Frontend Tests
+Harmonix SE can check for updates automatically:
 
-```bash
-cd frontend
-npm test
-```
+1. Go to **Settings > About**
+2. Click **Check for Updates**
+3. If an update is available, you'll be prompted to install
 
-## 📁 Project Structure
+Updates are downloaded and installed seamlessly with minimal disruption.
 
-```
-SoundConverterApp/
-├── frontend/              # React + Tailwind UI
-│   ├── src/
-│   │   ├── components/   # Reusable UI components
-│   │   ├── pages/        # Main app pages
-│   │   ├── hooks/        # Custom React hooks
-│   │   └── utils/        # Frontend utilities
-│   └── package.json
-├── backend/              # Python audio processing
-│   ├── app/
-│   │   ├── handler/     # Conversion, mastering, trimming
-│   │   └── resources/   # FFmpeg binaries
-│   ├── main.py          # Backend entrypoint
-│   └── utils.py
-├── src-tauri/           # Rust/Tauri bridge
-│   ├── src/
-│   │   ├── commands/   # Tauri commands (IPC)
-│   │   └── core/       # Core Tauri logic
-│   └── Cargo.toml
-└── tests/              # Backend unit tests
-```
+---
 
-## 🎨 Design Philosophy
+## 🎯 Use Cases
 
-The UI follows Apple's design principles:
+**For Musicians:**
 
-- **Glassmorphism**: Blur (24-40px) with semi-transparent layers
-- **Rounded Corners**: 12-24px radius for modern feel
-- **Smooth Animations**: ≤250ms transitions
-- **Clean Typography**: Inter/SF Pro fonts
-- **Minimal Shadows**: Soft, subtle depth
+- Convert between studio formats (WAV ↔ FLAC)
+- Master tracks for streaming platforms
+- Normalize loudness across albums
 
-## 📖 Documentation
+**For Podcasters:**
 
-- [**ROADMAP.md**](./ROADMAP.md) - Project milestones and development phases
-- [**AGENTS.md**](./AGENTS.md) - Architecture rules and guidelines for contributors
+- Remove silence and optimize audio
+- Convert to web-friendly formats (MP3, AAC)
+- Ensure consistent volume levels
 
-## 🛠️ Technology Stack
+**For Content Creators:**
+
+- Quick format conversion for video editing
+- Audio cleanup and enhancement
+- Batch processing for multiple episodes
+
+**For Audio Engineers:**
+
+- Professional LUFS normalization
+- Precision audio trimming
+- High-quality format preservation
+
+---
+
+## 💡 Tips & Tricks
+
+- **Use Smart Analysis** for automatic optimization
+- **Enable concurrent processing** for faster batch conversions
+- **Preview audio** with the built-in waveform player before converting
+- **Save custom presets** for your most-used settings
+- **Check the About page** for keyboard shortcuts
+
+---
+
+## ❓ FAQ
+
+**Q: Do I need to install FFmpeg separately?**  
+A: No! FFmpeg is bundled with the app. Everything works out of the box.
+
+**Q: What's the maximum file size?**  
+A: Default is 500MB. You can adjust this in Settings > Advanced.
+
+**Q: Can I convert video files?**  
+A: Currently only audio files are supported. Video support may come in future updates.
+
+**Q: Is my audio data sent to any servers?**  
+A: No. All processing happens locally on your computer. Your files never leave your device.
+
+**Q: The app won't open on macOS. What do I do?**  
+A: Right-click the app and select "Open" to bypass Gatekeeper on first launch.
+
+---
+
+## 🛟 Support
+
+**Found a bug?** [Report it on GitHub](https://github.com/h1dr0nn/SoundConverterApp/issues)
+
+**Have a feature request?** [Share your ideas](https://github.com/h1dr0nn/SoundConverterApp/discussions)
+
+**Need help?** Check the [Wiki](https://github.com/h1dr0nn/SoundConverterApp/wiki) or open a discussion
+
+---
+
+## 📝 Changelog
+
+See [CHANGELOG.md](./CHANGELOG.md) for version history and release notes.
+
+---
+
+## � Acknowledgments
 
 | Layer    | Technology                   |
 | -------- | ---------------------------- |
 | Frontend | React 18, Tailwind CSS, Vite |
-| Desktop  | Tauri 1.5                    |
-| Backend  | Python 3.9+, FFmpeg          |
+| Desktop  | Tauri 2.0                    |
+| Backend  | Python 3.12, FFmpeg          |
 | Build    | Rust, Node.js                |
-
-## 🤝 Contributing
-
-Please read [AGENTS.md](./AGENTS.md) for architecture guidelines before contributing.
-
-## 📝 License
-
-MIT License - feel free to use this project for learning or personal use.
 
 ---
 
-**Status**: Phase 3 Complete ✅ | Packaging & CI/CD in progress
+## � License
+
+MIT License - Free for personal and commercial use.
+
+See [LICENSE](./LICENSE) for details.
+
+---
+
+**Made with ❤️ by h1dr0n**
+
+_Transform your audio workflow with Harmonix SE_
