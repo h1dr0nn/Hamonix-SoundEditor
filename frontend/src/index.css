@@ -142,7 +142,7 @@ body {
 }
 
 .animate-pulse-glow {
-  animation: pulse-glow 250ms ease-in-out infinite;
+  animation: pulse-glow 2s ease-in-out infinite;
 }
 
 .animate-shake {
