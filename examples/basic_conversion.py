@@ -42,11 +42,10 @@ def main():
 
     # 4. Configure conversion
     request = ConversionRequest(
-        input_path=str(input_file),
-        output_dir=str(output_dir),
-        format="mp3",
-        bitrate="320k",
-        sample_rate=44100
+        input_paths=[input_file],
+        output_directory=output_dir,
+        output_format="mp3",
+        ffmpeg_path=ffmpeg_path
     )
 
     # 5. Process
