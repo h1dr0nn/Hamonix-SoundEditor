@@ -347,6 +347,11 @@ jobs:
             Copy-Item -Recurse "src-tauri\binaries" "$portableDir\binaries"
           }
 
+          # Copy backend Python code
+          if (Test-Path "backend") {
+            Copy-Item -Recurse "backend" "$portableDir\backend"
+          }
+
           # Create ZIP
           $zipName = "harmonixse_windows_${VERSION}_x86_64_portable.zip"
           Compress-Archive -Path $portableDir -DestinationPath $zipName -Force

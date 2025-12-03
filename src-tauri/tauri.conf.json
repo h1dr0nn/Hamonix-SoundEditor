@@ -70,8 +70,8 @@
     "windows": [
       {
         "title": "Harmonix SE",
-        "width": 1280,
-        "height": 720,
+        "width": 1400,
+        "height": 800,
         "minWidth": 900,
         "minHeight": 650,
         "resizable": true,
