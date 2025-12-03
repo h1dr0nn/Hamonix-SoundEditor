@@ -11,6 +11,7 @@ import json
 import sys
 import traceback
 from pathlib import Path
+from typing import Optional, Dict, Any, Union
 
 # Add vendor directory to Python path for bundled dependencies (e.g., pydub)
 # This ensures dependencies installed via `pip install --target backend/vendor`
@@ -25,9 +26,28 @@ from app.handler.modifier import ModificationRequest, process as process_modific
 from app.handler.trimmer import SilenceTrimmer, TrimRequest
 from utils import ensure_ffmpeg, log_message
 
+# Import new modules
+from app.validators.audio_validator import validate_audio_file
+from app.validators.parameter_validator import (
+    validate_conversion_params,
+    validate_mastering_params,
+    validate_trim_params,
+    validate_modify_params
+)
+from app.formatters.output_formatter import (
+    format_success,
+    format_error,
+    format_progress
+)
+from app.exceptions.base import HarmonixError
 
-def emit_progress(progress: ConversionProgress | dict) -> None:
-    """Emit progress updates to stdout as JSON."""
+
+def emit_progress(progress: Union[ConversionProgress, Dict[str, Any]]) -> None:
+    """Emit progress updates to stdout as JSON.
+    
+    Args:
+        progress: ConversionProgress object or dictionary with progress data.
+    """
     if isinstance(progress, ConversionProgress):
         payload = {
             "event": "progress",
@@ -61,16 +81,17 @@ def main() -> None:
 
         data = json.loads(raw_input)
     except json.JSONDecodeError as e:
-        print(json.dumps({"status": "error", "message": f"Invalid JSON input: {e}"}))
+        print(json.dumps(format_error("init", f"Invalid JSON input: {e}", "JSON_ERROR")))
         sys.exit(1)
     except Exception as e:
-        print(json.dumps({"status": "error", "message": f"Input error: {e}"}))
+        print(json.dumps(format_error("init", f"Input error: {e}", "INPUT_ERROR")))
         sys.exit(1)
 
     # 3. Determine operation type
     operation = data.get("operation", "convert")
 
     try:
+        result = None
         if operation == "convert":
             result = handle_conversion(data, ffmpeg_path)
             if result is None or result.get("status") != "success":
@@ -85,7 +106,7 @@ def main() -> None:
         elif operation == "analyze":
             result = handle_analysis(data)
         else:
-            print(json.dumps({"status": "error", "message": f"Unknown operation: {operation}"}))
+            print(json.dumps(format_error("init", f"Unknown operation: {operation}", "INVALID_OPERATION")))
             sys.exit(1)
 
         if result is not None:
@@ -95,18 +116,46 @@ def main() -> None:
         if result is None or result.get("status") != "success":
             sys.exit(1)
 
+    except HarmonixError as he:
+        # Handle known custom exceptions
+        print(json.dumps(format_error(operation, he.message, he.code, he.details)))
+        sys.exit(1)
     except Exception as e:
-        print(json.dumps({"status": "fatal", "message": str(e), "traceback": traceback.format_exc()}))
+        # Handle unexpected exceptions
+        print(json.dumps(format_error(
+            operation, 
+            str(e), 
+            "FATAL_ERROR", 
+            {"traceback": traceback.format_exc()}
+        )))
         sys.exit(1)
 
 
-def handle_conversion(data: dict, ffmpeg_path: Path | None) -> dict | None:
-    """Handle audio conversion request."""
+def handle_conversion(data: Dict[str, Any], ffmpeg_path: Optional[Path]) -> Optional[Dict[str, Any]]:
+    """Handle audio conversion request.
+    
+    Args:
+        data: Request data dictionary.
+        ffmpeg_path: Path to FFmpeg binary.
+        
+    Returns:
+        Result dictionary or None if failed.
+    """
     input_paths = [Path(p) for p in data.get("files", data.get("input_paths", []))]
     output_directory = Path(data.get("output") or data.get("output_directory") or ".")
     output_format = data.get("format") or data.get("output_format", "mp3")
     overwrite = data.get("overwrite_existing", True)
-    concurrent_files = data.get("concurrent_files", 1)  # Get concurrent setting
+    concurrent_files = data.get("concurrent_files", 1)
+
+    # Validate parameters
+    params_to_validate = {
+        "format": output_format,
+        "concurrent_files": concurrent_files
+    }
+    is_valid, error = validate_conversion_params(params_to_validate)
+    if not is_valid:
+        emit_progress(format_error("convert", str(error), "VALIDATION_ERROR"))
+        return None
 
     log_message(
         "python",
@@ -129,19 +178,18 @@ def handle_conversion(data: dict, ffmpeg_path: Path | None) -> dict | None:
         )
     except Exception as exc:
         log_message("python", f"Fatal error during conversion: {exc}")
-        emit_progress({"event": "complete", "status": "fatal", "message": str(exc)})
+        emit_progress(format_error("convert", str(exc), "CONVERSION_FATAL"))
         return None
 
     status = "success" if result.success else "error"
-    emit_progress(
-        {
-            "event": "complete",
-            "status": status,
-            "message": result.message,
-            "outputs": [str(p) for p in result.outputs],
-            "operation_type": "convert"
-        }
-    )
+    response_data = {
+        "event": "complete",
+        "status": status,
+        "message": result.message,
+        "outputs": [str(p) for p in result.outputs],
+        "operation_type": "convert"
+    }
+    emit_progress(response_data)
 
     return {
         "status": status,
@@ -151,15 +199,22 @@ def handle_conversion(data: dict, ffmpeg_path: Path | None) -> dict | None:
     }
 
 
-def handle_mastering(data: dict) -> dict:
+def handle_mastering(data: Dict[str, Any]) -> Dict[str, Any]:
     """Handle audio mastering request."""
     input_paths = [Path(p) for p in data.get("input_paths", [])]
     output_directory = Path(data.get("output_directory", "."))
     preset = data.get("preset", "Music")
     overwrite = data.get("overwrite_existing", True)
     
-    # Parse parameters if provided
+    # Parse parameters
     params_data = data.get("parameters", {})
+    
+    # Validate
+    validation_params = {"preset": preset.lower(), **params_data}
+    is_valid, error = validate_mastering_params(validation_params)
+    if not is_valid:
+        return format_error("master", str(error), "VALIDATION_ERROR")
+
     parameters = MasteringParameters(
         target_lufs=params_data.get("target_lufs", -14.0),
         apply_compression=params_data.get("apply_compression", True),
@@ -178,15 +233,14 @@ def handle_mastering(data: dict) -> dict:
     result = MasteringEngine.process(request)
     
     status = "success" if result.success else "error"
-    emit_progress(
-        {
-            "event": "complete",
-            "status": status,
-            "message": result.message,
-            "outputs": [str(p) for p in result.outputs],
-            "operation_type": "master"
-        }
-    )
+    response_data = {
+        "event": "complete",
+        "status": status,
+        "message": result.message,
+        "outputs": [str(p) for p in result.outputs],
+        "operation_type": "master"
+    }
+    emit_progress(response_data)
     
     return {
         "status": status,
@@ -196,7 +250,7 @@ def handle_mastering(data: dict) -> dict:
     }
 
 
-def handle_trimming(data: dict) -> dict:
+def handle_trimming(data: Dict[str, Any]) -> Dict[str, Any]:
     """Handle silence trimming request."""
     input_paths = [Path(p) for p in data.get("input_paths", [])]
     output_directory = Path(data.get("output_directory", "."))
@@ -204,6 +258,15 @@ def handle_trimming(data: dict) -> dict:
     minimum_silence_ms = data.get("minimum_silence_ms", 500)
     padding_ms = data.get("padding_ms", 0)
     overwrite = data.get("overwrite_existing", True)
+
+    # Validate
+    validation_params = {
+        "threshold": silence_threshold,
+        "min_silence_len": minimum_silence_ms
+    }
+    is_valid, error = validate_trim_params(validation_params)
+    if not is_valid:
+        return format_error("trim", str(error), "VALIDATION_ERROR")
 
     request = TrimRequest(
         input_paths=input_paths,
@@ -217,15 +280,14 @@ def handle_trimming(data: dict) -> dict:
     result = SilenceTrimmer.process(request)
 
     status = "success" if result.success else "error"
-    emit_progress(
-        {
-            "event": "complete",
-            "status": status,
-            "message": result.message,
-            "outputs": [str(p) for p in result.outputs],
-            "operation_type": "trim"
-        }
-    )
+    response_data = {
+        "event": "complete",
+        "status": status,
+        "message": result.message,
+        "outputs": [str(p) for p in result.outputs],
+        "operation_type": "trim"
+    }
+    emit_progress(response_data)
 
     return {
         "status": status,
@@ -235,7 +297,7 @@ def handle_trimming(data: dict) -> dict:
     }
 
 
-def handle_modification(data: dict) -> dict:
+def handle_modification(data: Dict[str, Any]) -> Dict[str, Any]:
     """Handle audio modification request."""
     input_paths = [Path(p) for p in data.get("input_paths", [])]
     output_directory = Path(data.get("output_directory", "."))
@@ -243,6 +305,12 @@ def handle_modification(data: dict) -> dict:
     pitch = int(data.get("pitch", 0))
     cut_start = float(data.get("cut_start", 0.0))
     cut_end = float(data.get("cut_end", 100.0))
+
+    # Validate
+    validation_params = {"speed": speed, "pitch": pitch}
+    is_valid, error = validate_modify_params(validation_params)
+    if not is_valid:
+        return format_error("modify", str(error), "VALIDATION_ERROR")
 
     request = ModificationRequest(
         input_paths=input_paths,
@@ -255,15 +323,14 @@ def handle_modification(data: dict) -> dict:
 
     try:
         outputs = process_modification(request)
-        emit_progress(
-            {
-                "event": "complete",
-                "status": "success",
-                "message": f"Modified {len(outputs)} files",
-                "outputs": [str(p) for p in outputs],
-                "operation_type": "modify"
-            }
-        )
+        response_data = {
+            "event": "complete",
+            "status": "success",
+            "message": f"Modified {len(outputs)} files",
+            "outputs": [str(p) for p in outputs],
+            "operation_type": "modify"
+        }
+        emit_progress(response_data)
         return {
             "status": "success",
             "message": f"Modified {len(outputs)} files",
@@ -271,46 +338,35 @@ def handle_modification(data: dict) -> dict:
             "operation_type": "modify"
         }
     except Exception as e:
-        emit_progress(
-            {
-                "event": "complete",
-                "status": "error",
-                "message": str(e),
-                "outputs": [],
-                "operation_type": "modify"
-            }
-        )
-        return {
-            "status": "error",
-            "message": str(e),
-            "outputs": [],
-            "operation_type": "modify"
-        }
+        error_response = format_error("modify", str(e), "MODIFICATION_ERROR")
+        error_response["event"] = "complete"
+        emit_progress(error_response)
+        return error_response
 
 
-def handle_analysis(data: dict) -> dict:
+def handle_analysis(data: Dict[str, Any]) -> Dict[str, Any]:
     """Handle audio analysis request."""
     input_paths = [Path(p) for p in data.get("files", data.get("input_paths", []))]
     if not input_paths:
-        return {"status": "error", "message": "No input files provided", "outputs": []}
+        return format_error("analyze", "No input files provided", "NO_INPUT")
 
     ffmpeg_path = ensure_ffmpeg()
     if not ffmpeg_path:
         log_message("python", "FFmpeg not found during analysis")
-        return {"status": "error", "message": "FFmpeg not found", "outputs": []}
+        return format_error("analyze", "FFmpeg not found", "FFMPEG_MISSING")
 
     log_message("python", f"Starting analysis with ffmpeg: {ffmpeg_path}")
     ffprobe_path = ffmpeg_path.parent / ("ffprobe.exe" if sys.platform == "win32" else "ffprobe")
     
     # Fallback: try system ffprobe if bundled one not found
     if not ffprobe_path.exists():
-        ffprobe_path = "ffprobe"
+        ffprobe_path = Path("ffprobe")
 
     results = []
     import subprocess
     import re
 
-    def analyze_with_ffmpeg(ffmpeg_bin, file_path):
+    def analyze_with_ffmpeg(ffmpeg_bin: Path, file_path: Path) -> Optional[Dict[str, Any]]:
         """Fallback analysis using ffmpeg stderr output."""
         try:
             # Run ffmpeg -i input -f null -
