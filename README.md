@@ -1,4 +1,4 @@
-# 🎵 Harmonix SE
+# 🎵 Harmonix - Sound Editor
 
 **Professional audio converter with an elegant, modern interface**
 
@@ -24,7 +24,7 @@ Harmonix SE is a powerful desktop application for converting, enhancing, and pro
 
 ## 📥 Download
 
-### Latest Release: v1.0.2
+### Latest Release: v1.0.3
 
 Download the latest version for your platform:
 
@@ -76,12 +76,6 @@ Updates are downloaded and installed seamlessly with minimal disruption.
 **Have a feature request?** [Share your ideas](https://github.com/h1dr0nn/SoundConverterApp/discussions)
 
 **Need help?** Check the [Wiki](https://github.com/h1dr0nn/SoundConverterApp/wiki) or open a discussion
-
----
-
-## 📝 Changelog
-
-See [CHANGELOG.md](./CHANGELOG.md) for version history and release notes.
 
 ---
 
