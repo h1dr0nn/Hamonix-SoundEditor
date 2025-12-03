@@ -303,10 +303,18 @@ fn resolve_python(app: &tauri::AppHandle) -> Result<PythonResolution, String> {
     // 3. Relative to current exe (fallback)
 
     let backend_candidates = vec![
-        // Production: bundled resource
+        // Production: bundled resource (Windows MSI/EXE use _up_ subdirectory)
+        app.path()
+            .resolve("_up_/backend/main.py", BaseDirectory::Resource)
+            .ok(),
+        // Production: bundled resource (standard path)
         app.path()
             .resolve("backend/main.py", BaseDirectory::Resource)
             .ok(),
+        // Portable: backend alongside executable
+        std::env::current_exe()
+            .ok()
+            .and_then(|exe| exe.parent().map(|p| p.join("backend/main.py"))),
         // Dev mode: relative to project root
         std::env::current_dir()
             .ok()

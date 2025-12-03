@@ -1746,9 +1746,19 @@ export function useTranslation() {
   const { settings } = useSettingsContext();
   const language = settings.language || 'en';
   
-  const t = (key) => {
+  const t = (key, params = {}) => {
     const dict = translations[language] || translations.en;
-    return dict[key] || key;
+    let text = dict[key] || key;
+    
+    // Replace {{variable}} placeholders with actual values from params
+    if (params && typeof text === 'string') {
+      Object.keys(params).forEach(param => {
+        const regex = new RegExp(`\\{\\{${param}\\}\\}`, 'g');
+        text = text.replace(regex, params[param]);
+      });
+    }
+    
+    return text;
   };
   
   return { t, language };
