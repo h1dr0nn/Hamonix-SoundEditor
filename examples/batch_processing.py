@@ -18,18 +18,16 @@ from utils import ensure_ffmpeg
 
 def process_single_file(file_path: Path, output_dir: Path) -> dict:
     """Process a single file and return result dict."""
-    converter = SoundConverter()
-    
     request = ConversionRequest(
-        input_path=str(file_path),
-        output_dir=str(output_dir),
-        format="flac",  # Convert everything to FLAC
-        sample_rate=48000
+        input_paths=[file_path],
+        output_directory=output_dir,
+        output_format="flac",
+        ffmpeg_path=ensure_ffmpeg()
     )
     
     start_time = time.time()
     try:
-        result = converter.process(request)
+        result = SoundConverter.convert(request)
         duration = time.time() - start_time
         
         return {
